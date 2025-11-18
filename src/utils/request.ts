@@ -28,17 +28,23 @@ const service: AxiosInstance = axios.create(config)
  */
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 统一添加 format=json 参数（Chatlog API 支持）
-    config.params = {
-      ...config.params,
-      format: 'json',
-    }
-
-    // 添加时间戳防止缓存
+    // 添加默认分页参数（如果没有提供）
     if (config.method?.toLowerCase() === 'get') {
+      const userParams = config.params || {}
+      
+      // 设置默认值，用户参数优先
+      config.params = {
+        limit: 200,     // 默认值
+        offset: 0,      // 默认值
+        ...userParams,  // 用户参数会覆盖默认值
+        format: 'json', // 始终添加 format
+        _t: Date.now(), // 始终添加时间戳
+      }
+    } else {
+      // 非 GET 请求也添加 format 参数
       config.params = {
         ...config.params,
-        _t: Date.now(),
+        format: 'json',
       }
     }
 
@@ -51,6 +57,11 @@ service.interceptors.request.use(
     // 开发环境日志
     if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEBUG === 'true') {
       console.log('📤 Request:', config.method?.toUpperCase(), config.url, config.params || config.data)
+    }
+    
+    // 调试：打印最终参数（临时）
+    if (config.method?.toLowerCase() === 'get' && config.url?.includes('/contact')) {
+      console.log('🔍 Final params for', config.url, ':', config.params)
     }
 
     return config

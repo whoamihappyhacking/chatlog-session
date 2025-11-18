@@ -389,6 +389,22 @@ export const useContactStore = defineStore('contact', () => {
   }
 
   /**
+   * 批量添加联系人（本地）
+   */
+  function addContacts(newContacts: Contact[]) {
+    // 去重：只添加不存在的联系人
+    const existingIds = new Set(contacts.value.map(c => c.wxid))
+    const uniqueContacts = newContacts.filter(c => !existingIds.has(c.wxid))
+    
+    if (uniqueContacts.length > 0) {
+      contacts.value.push(...uniqueContacts)
+      totalContacts.value = contacts.value.length
+    }
+    
+    return uniqueContacts.length
+  }
+
+  /**
    * 获取联系人显示名称
    */
   function getContactDisplayName(wxid: string): string {
@@ -584,6 +600,7 @@ export const useContactStore = defineStore('contact', () => {
     toggleStarContact,
     updateContact,
     deleteContact,
+    addContacts,
     getContactDisplayName,
     getContactAvatar,
     getChatroomMembers,

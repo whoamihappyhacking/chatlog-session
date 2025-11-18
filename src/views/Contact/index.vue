@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useContactStore } from '@/stores/contact'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { RecycleScroller } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import Avatar from '@/components/common/Avatar.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Loading from '@/components/common/Loading.vue'
@@ -15,10 +18,19 @@ const router = useRouter()
 
 // 状态
 const loading = ref(false)
+const loadingMore = ref(false)
+const refreshing = ref(false)
 const error = ref<Error | null>(null)
 const searchText = ref('')
 const filterType = ref<'all' | 'friends' | 'groups' | 'starred'>('all')
 const sortBy = ref<'name' | 'pinyin'>('pinyin')
+const hasMore = ref(true)
+const currentLimit = ref(200)
+const currentOffset = ref(0)
+const showBackTop = ref(false)
+const scrollerRef = ref()
+const pullDistance = ref(0)
+const isPulling = ref(false)
 
 // 计算属性
 const filteredContacts = computed(() => {
@@ -56,29 +68,83 @@ const filteredContacts = computed(() => {
   return contacts
 })
 
-// 按首字母分组
-const groupedContacts = computed(() => {
+// 扁平化列表用于虚拟滚动
+const flattenedContacts = computed(() => {
+  const result: Array<{ type: 'header' | 'item', key: string, data?: Contact, header?: string }> = []
+  
   if (sortBy.value === 'name') {
-    return { '全部': filteredContacts.value }
+    // 不分组，直接返回联系人列表
+    filteredContacts.value.forEach(contact => {
+      result.push({
+        type: 'item',
+        key: contact.wxid,
+        data: contact
+      })
+    })
+  } else {
+    // 按首字母分组
+    const grouped: Record<string, Contact[]> = {}
+    filteredContacts.value.forEach(contact => {
+      const initial = contact.nickname.charAt(0).toUpperCase()
+      if (!grouped[initial]) {
+        grouped[initial] = []
+      }
+      grouped[initial].push(contact)
+    })
+    
+    // 按字母排序
+    const sortedLetters = Object.keys(grouped).sort((a, b) => {
+      if (a === '#') return 1
+      if (b === '#') return -1
+      return a.localeCompare(b)
+    })
+    
+    // 构建扁平化列表
+    sortedLetters.forEach(letter => {
+      // 添加分组头
+      result.push({
+        type: 'header',
+        key: `header-${letter}`,
+        header: letter
+      })
+      // 添加该组的联系人
+      grouped[letter].forEach(contact => {
+        result.push({
+          type: 'item',
+          key: contact.wxid,
+          data: contact
+        })
+      })
+    })
   }
-  // 简单按首字母分组
-  const grouped: Record<string, Contact[]> = {}
-  filteredContacts.value.forEach(contact => {
-    const initial = contact.nickname.charAt(0).toUpperCase()
-    if (!grouped[initial]) {
-      grouped[initial] = []
+  
+  return result
+})
+
+// 获取字母索引列表
+const letterIndexList = computed(() => {
+  if (sortBy.value !== 'pinyin') return []
+  
+  const letters = new Set<string>()
+  flattenedContacts.value.forEach(item => {
+    if (item.type === 'header' && item.header) {
+      letters.add(item.header)
     }
-    grouped[initial].push(contact)
   })
-  return grouped
+  
+  return Array.from(letters).sort((a, b) => {
+    if (a === '#') return 1
+    if (b === '#') return -1
+    return a.localeCompare(b)
+  })
 })
 
 // 统计信息
 const stats = computed(() => {
-  const allContacts = Array.isArray(contactStore.contacts)
-    ? contactStore.contacts
+  const allContacts = Array.isArray(contactStore.contacts) 
+    ? contactStore.contacts 
     : []
-
+  
   return {
     total: allContacts.length,
     friends: allContacts.filter(c => c.type === ContactType.Friend).length,
@@ -87,14 +153,156 @@ const stats = computed(() => {
   }
 })
 
+// 加载更多
+const loadMore = async () => {
+  if (loadingMore.value || !hasMore.value || loading.value) {
+    return
+  }
+
+  loadingMore.value = true
+
+  try {
+    // 使用 contactAPI 直接加载更多数据
+    const { contactAPI } = await import('@/api')
+    const moreContacts = await contactAPI.getContacts({
+      limit: currentLimit.value,
+      offset: currentOffset.value
+    })
+
+    if (moreContacts.length < currentLimit.value) {
+      hasMore.value = false
+    }
+
+    // 使用 Store 方法添加联系人
+    const addedCount = contactStore.addContacts(moreContacts)
+    
+    if (addedCount > 0) {
+      currentOffset.value += moreContacts.length
+      console.log(`📥 Loaded ${addedCount} more contacts (offset: ${currentOffset.value})`)
+    } else {
+      hasMore.value = false
+    }
+  } catch (err) {
+    console.error('加载更多联系人失败:', err)
+    ElMessage.error('加载更多失败')
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+// 处理滚动到底部
+const handleScroll = (event: any) => {
+  const { scrollTop, clientHeight, scrollHeight } = event.target
+  const distanceToBottom = scrollHeight - scrollTop - clientHeight
+  
+  // 距离底部 100px 时触发加载
+  if (distanceToBottom < 100 && hasMore.value && !loadingMore.value) {
+    loadMore()
+  }
+  
+  // 显示/隐藏回到顶部按钮
+  showBackTop.value = scrollTop > 300
+}
+
+// 回到顶部
+const scrollToTop = () => {
+  if (scrollerRef.value && scrollerRef.value.$el) {
+    const scrollElement = scrollerRef.value.$el.querySelector('.vue-recycle-scroller__item-wrapper')
+    if (scrollElement) {
+      scrollElement.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+}
+
+// 跳转到指定字母
+const jumpToLetter = (letter: string) => {
+  const element = document.querySelector(`[data-letter="${letter}"]`)
+  if (element && scrollerRef.value && scrollerRef.value.$el) {
+    const scrollElement = scrollerRef.value.$el.querySelector('.vue-recycle-scroller__item-wrapper')
+    const scrollerRect = scrollElement?.getBoundingClientRect()
+    const elementRect = element.getBoundingClientRect()
+    
+    if (scrollElement && scrollerRect) {
+      const offset = elementRect.top - scrollerRect.top + scrollElement.scrollTop
+      scrollElement.scrollTo({ top: offset, behavior: 'smooth' })
+    }
+  }
+}
+
+// 下拉刷新相关
+const handleTouchStart = (_event: TouchEvent) => {
+  if (scrollerRef.value && scrollerRef.value.$el) {
+    const scrollElement = scrollerRef.value.$el.querySelector('.vue-recycle-scroller__item-wrapper')
+    if (scrollElement && scrollElement.scrollTop === 0) {
+      isPulling.value = true
+      pullDistance.value = 0
+    }
+  }
+}
+
+const handleTouchMove = (event: TouchEvent) => {
+  if (!isPulling.value) return
+  
+  const startY = event.touches[0].clientY
+  
+  if (startY > 0) {
+    pullDistance.value = Math.min(startY / 2, 100)
+    if (pullDistance.value > 0) {
+      event.preventDefault()
+    }
+  }
+}
+
+const handleTouchEnd = async () => {
+  if (!isPulling.value) return
+  
+  isPulling.value = false
+  
+  if (pullDistance.value > 50) {
+    // 触发刷新
+    refreshing.value = true
+    pullDistance.value = 0
+    
+    try {
+      // 重置状态
+      currentOffset.value = 0
+      hasMore.value = true
+      
+      // 重新加载
+      await loadContacts()
+      
+      ElMessage.success('刷新成功')
+    } catch (err) {
+      ElMessage.error('刷新失败')
+    } finally {
+      refreshing.value = false
+    }
+  } else {
+    pullDistance.value = 0
+  }
+}
+
 // 加载联系人
 const loadContacts = async () => {
   loading.value = true
   error.value = null
-
+  currentOffset.value = 0
+  hasMore.value = true
+  
   try {
     await contactStore.loadContacts()
-    //await contactStore.loadChatrooms()
+    await contactStore.loadChatrooms()
+    
+    // 初始化分页状态
+    const contactCount = contactStore.contacts.length
+    currentOffset.value = contactCount
+    
+    // 如果第一次加载的数据少于 limit，说明没有更多了
+    if (contactCount < currentLimit.value) {
+      hasMore.value = false
+    }
+    
+    console.log(`📥 Initial loaded ${contactCount} contacts`)
   } catch (e: any) {
     error.value = e
     console.error('加载联系人失败:', e)
@@ -218,48 +426,80 @@ onMounted(() => {
           </el-button>
         </Empty>
 
-        <!-- 联系人列表 -->
-        <div v-else class="contact-list-container">
-          <el-scrollbar>
-            <div
-              v-for="(contacts, initial) in groupedContacts"
-              :key="initial"
-              class="contact-group"
-            >
-              <!-- 分组标题 -->
-              <div class="group-header">{{ initial }}</div>
+        <!-- 联系人列表 - 虚拟滚动 -->
+        <div 
+          v-else 
+          class="contact-list-container"
+          @touchstart="handleTouchStart"
+          @touchmove="handleTouchMove"
+          @touchend="handleTouchEnd"
+        >
+          <!-- 下拉刷新提示 -->
+          <div 
+            v-if="pullDistance > 0 || refreshing" 
+            class="pull-refresh-indicator"
+            :style="{ height: `${pullDistance}px` }"
+          >
+            <div class="refresh-content">
+              <el-icon v-if="refreshing" class="is-loading"><Loading /></el-icon>
+              <el-icon v-else-if="pullDistance > 50"><Check /></el-icon>
+              <el-icon v-else><ArrowDown /></el-icon>
+              <span>{{ refreshing ? '刷新中...' : pullDistance > 50 ? '松开刷新' : '下拉刷新' }}</span>
+            </div>
+          </div>
+
+          <RecycleScroller
+            ref="scrollerRef"
+            :items="flattenedContacts"
+            :item-size="72"
+            :min-item-size="36"
+            key-field="key"
+            class="contact-scroller"
+            :buffer="200"
+            :page-mode="false"
+            @scroll="handleScroll"
+          >
+            <template #default="{ item }">
+              <!-- 分组头 -->
+              <div 
+                v-if="item.type === 'header'" 
+                :key="`header-${item.header}`" 
+                :data-letter="item.header"
+                class="group-header"
+              >
+                {{ item.header }}
+              </div>
 
               <!-- 联系人项 -->
               <div
-                v-for="contact in contacts"
-                :key="contact.wxid"
+                v-else
                 class="contact-item"
-                @click="viewContact(contact)"
+                @click="viewContact(item.data!)"
               >
                 <Avatar
-                  :src="contact.avatar"
-                  :name="contact.nickname"
+                  :src="item.data!.avatar"
+                  :name="item.data!.nickname"
                   :size="48"
                   class="contact-avatar"
                 />
 
                 <div class="contact-info">
                   <div class="contact-name">
-                    <span class="name-text">{{ contact.remark || contact.nickname }}</span>
-                    <el-icon v-if="contact.isStarred" color="#f59e0b" size="16">
+                    <span class="name-text">{{ item.data!.remark || item.data!.nickname }}</span>
+                    <el-icon v-if="item.data!.isStarred" color="#f59e0b" size="16">
                       <StarFilled />
                     </el-icon>
                   </div>
                   <div class="contact-desc">
                     <el-tag
-                      v-if="contact.type"
+                      v-if="item.data!.type"
                       size="small"
-                      :type="contact.type === ContactType.Chatroom ? 'warning' : 'info'"
+                      :type="item.data!.type === ContactType.Chatroom ? 'warning' : 'info'"
                       effect="plain"
                     >
-                      {{ contact.type === ContactType.Chatroom ? '群聊' : '好友' }}
+                      {{ item.data!.type === ContactType.Chatroom ? '群聊' : '好友' }}
                     </el-tag>
-                    <span v-if="contact.alias" class="alias">{{ contact.alias }}</span>
+                    <span v-if="item.data!.alias" class="alias">{{ item.data!.alias }}</span>
                   </div>
                 </div>
 
@@ -268,15 +508,51 @@ onMounted(() => {
                     text
                     type="primary"
                     size="small"
-                    @click.stop="startChat(contact)"
+                    @click.stop="startChat(item.data!)"
                   >
                     <el-icon><ChatDotRound /></el-icon>
                     发消息
                   </el-button>
                 </div>
               </div>
+            </template>
+          </RecycleScroller>
+
+          <!-- 加载更多提示 -->
+          <div v-if="loadingMore" class="loading-more">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载更多...</span>
+          </div>
+          
+          <div v-else-if="!hasMore && flattenedContacts.length > 0" class="no-more">
+            已加载全部联系人
+          </div>
+
+          <!-- 字母索引 -->
+          <div v-if="letterIndexList.length > 0 && sortBy === 'pinyin'" class="letter-index">
+            <div
+              v-for="letter in letterIndexList"
+              :key="letter"
+              class="letter-item"
+              @click="jumpToLetter(letter)"
+            >
+              {{ letter }}
             </div>
-          </el-scrollbar>
+          </div>
+
+          <!-- 回到顶部按钮 -->
+          <transition name="fade">
+            <el-button
+              v-if="showBackTop"
+              class="back-top-button"
+              circle
+              type="primary"
+              size="large"
+              @click="scrollToTop"
+            >
+              <el-icon><Top /></el-icon>
+            </el-button>
+          </transition>
         </div>
       </div>
 
@@ -375,80 +651,215 @@ onMounted(() => {
   .contact-list-container {
     flex: 1;
     overflow: hidden;
+    position: relative;
 
-    .contact-group {
-      .group-header {
-        padding: 8px 16px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--el-text-color-secondary);
+    .contact-scroller {
+      height: 100%;
+    }
+
+    .group-header {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--el-text-color-secondary);
+      background-color: var(--el-fill-color-light);
+      height: 36px;
+      display: flex;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 1px solid var(--el-border-color-lighter);
+
+      &:hover {
         background-color: var(--el-fill-color-light);
-        position: sticky;
-        top: 0;
-        z-index: 10;
-      }
-
-      .contact-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        cursor: pointer;
-        transition: all 0.2s;
-        border-bottom: 1px solid var(--el-border-color-lighter);
-
-        &:hover {
-          background-color: var(--el-fill-color-light);
-
-          .contact-actions {
-            opacity: 1;
-          }
-        }
-
-        .contact-avatar {
-          flex-shrink: 0;
-        }
-
-        .contact-info {
-          flex: 1;
-          min-width: 0;
-
-          .contact-name {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            margin-bottom: 4px;
-
-            .name-text {
-              font-size: 14px;
-              font-weight: 500;
-              color: var(--el-text-color-primary);
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-          }
-
-          .contact-desc {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-
-            .alias {
-              color: var(--el-text-color-secondary);
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-          }
-        }
 
         .contact-actions {
-          flex-shrink: 0;
-          opacity: 0;
-          transition: opacity 0.2s;
+          opacity: 1;
         }
+      }
+
+      .contact-avatar {
+        flex-shrink: 0;
+      }
+
+      .contact-info {
+        flex: 1;
+        min-width: 0;
+
+        .contact-name {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-bottom: 4px;
+
+          .name-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--el-text-color-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+        }
+
+        .contact-desc {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+
+          .alias {
+            color: var(--el-text-color-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+        }
+      }
+
+      .contact-actions {
+        flex-shrink: 0;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+    }
+
+    // 虚拟滚动样式覆盖
+    :deep(.vue-recycle-scroller) {
+      outline: none;
+    }
+
+    :deep(.vue-recycle-scroller__item-wrapper) {
+      overflow: visible;
+    }
+
+    :deep(.vue-recycle-scroller__item-view) {
+      overflow: visible;
+    }
+
+    :deep(.vue-recycle-scroller__slot) {
+      display: none;
+    }
+
+    .loading-more,
+    .no-more {
+      padding: 16px;
+      text-align: center;
+      font-size: 14px;
+      color: var(--el-text-color-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .loading-more {
+      .is-loading {
+        animation: rotating 2s linear infinite;
+      }
+    }
+
+    // 下拉刷新提示
+    .pull-refresh-indicator {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      background: var(--el-bg-color);
+      z-index: 100;
+      transition: height 0.2s;
+      overflow: hidden;
+
+      .refresh-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        font-size: 14px;
+        color: var(--el-text-color-secondary);
+
+        .is-loading {
+          animation: rotating 2s linear infinite;
+        }
+      }
+    }
+
+    // 字母索引
+    .letter-index {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 50;
+      padding: 4px;
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 12px;
+
+      .letter-item {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--el-color-primary);
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s;
+        border-radius: 50%;
+
+        &:hover {
+          background-color: var(--el-color-primary);
+          color: white;
+          transform: scale(1.2);
+        }
+
+        &:active {
+          transform: scale(1.1);
+        }
+      }
+    }
+
+    // 回到顶部按钮
+    .back-top-button {
+      position: absolute;
+      right: 20px;
+      bottom: 80px;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+
+      &:hover {
+        transform: scale(1.1);
+      }
+
+      &:active {
+        transform: scale(1.05);
+      }
+    }
+
+    @keyframes rotating {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
       }
     }
   }
@@ -466,6 +877,19 @@ onMounted(() => {
 }
 
 // 响应式
+// 过渡动画
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+// 响应式设计
 @media (max-width: 768px) {
   .contact-container {
     flex-direction: column;
@@ -479,6 +903,13 @@ onMounted(() => {
 
   .contact-detail-panel {
     display: none;
+  }
+
+  .contact-list-container {
+    .back-top-button {
+      right: 16px;
+      bottom: 60px;
+    }
   }
 }
 </style>
