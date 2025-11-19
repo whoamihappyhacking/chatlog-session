@@ -42,7 +42,7 @@ const iconSize = computed(() => sizeMap[props.size])
 <style lang="scss" scoped>
 .loading-wrapper {
   position: relative;
-  width: 100%;
+  /*width: 100%;*/
   height: 100%;
   min-height: 200px;
 

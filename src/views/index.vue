@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useContactStore } from '@/stores/contact'
 import ChatView from './Chat/index.vue'
 import ContactView from './Contact/index.vue'
 import SearchView from './Search/index.vue'
 import SettingsView from './Settings/index.vue'
 
 const appStore = useAppStore()
+const contactStore = useContactStore()
+
+// 联系人后台加载状态
+const isContactLoading = computed(() => contactStore.isBackgroundLoading)
 
 // 当前激活的视图
 type ViewType = 'chat' | 'contact' | 'search' | 'settings'
@@ -51,8 +56,8 @@ const CurrentViewComponent = computed(() => {
 
       <div class="sidebar-nav">
         <el-tooltip content="聊天" placement="right">
-          <div 
-            class="nav-item" 
+          <div
+            class="nav-item"
             :class="{ active: isActive('chat') }"
             @click="switchView('chat')"
           >
@@ -63,20 +68,28 @@ const CurrentViewComponent = computed(() => {
         </el-tooltip>
 
         <el-tooltip content="联系人" placement="right">
-          <div 
-            class="nav-item" 
+          <div
+            class="nav-item"
             :class="{ active: isActive('contact') }"
             @click="switchView('contact')"
           >
             <el-icon size="24">
               <User />
             </el-icon>
+            <!-- 后台加载指示器 -->
+            <transition name="fade">
+              <div v-if="isContactLoading" class="loading-indicator">
+                <el-icon class="loading-icon">
+                  <Loading text="" />
+                </el-icon>
+              </div>
+            </transition>
           </div>
         </el-tooltip>
 
         <el-tooltip content="搜索" placement="right">
-          <div 
-            class="nav-item" 
+          <div
+            class="nav-item"
             :class="{ active: isActive('search') }"
             @click="switchView('search')"
           >
@@ -89,8 +102,8 @@ const CurrentViewComponent = computed(() => {
 
       <div class="sidebar-footer">
         <el-tooltip content="设置" placement="right">
-          <div 
-            class="nav-item" 
+          <div
+            class="nav-item"
             :class="{ active: isActive('settings') }"
             @click="switchView('settings')"
           >
@@ -208,7 +221,48 @@ const CurrentViewComponent = computed(() => {
     &:active {
       transform: scale(0.95);
     }
+
+    // 加载指示器
+    .loading-indicator {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 12px;
+      height: 12px;
+      background-color: var(--el-color-primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .loading-icon {
+        font-size: 8px;
+        color: white;
+        animation: rotate 1s linear infinite;
+      }
+    }
   }
+}
+
+// 旋转动画
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// 淡入淡出动画
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 // 内容区域

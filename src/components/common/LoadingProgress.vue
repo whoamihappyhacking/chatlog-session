@@ -18,10 +18,10 @@ const props = withDefaults(defineProps<Props>(), {
 // 格式化时间
 const formatTime = (ms?: number) => {
   if (!ms || ms <= 0) return '--'
-  
+
   const seconds = Math.floor(ms / 1000)
   if (seconds < 60) return `${seconds}秒`
-  
+
   const minutes = Math.floor(seconds / 60)
   const remainSeconds = seconds % 60
   return `${minutes}分${remainSeconds}秒`
@@ -33,16 +33,22 @@ const formatSpeed = (itemsPerSecond: number) => {
   return `${Math.round(itemsPerSecond)} 项/秒`
 }
 
+// 是否为不确定模式（无总量）
+const isIndeterminate = computed(() => {
+  return props.progress && props.progress.total === undefined
+})
+
 // 进度条宽度
 const progressWidth = computed(() => {
   if (!props.progress) return '0%'
+  if (isIndeterminate.value) return '100%' // 不确定模式显示满条
   return `${Math.min(props.progress.percentage, 100).toFixed(1)}%`
 })
 
 // 进度条颜色
 const progressColor = computed(() => {
   if (!props.progress) return 'var(--el-color-primary)'
-  
+
   const percentage = props.progress.percentage
   if (percentage < 30) return 'var(--el-color-danger)'
   if (percentage < 70) return 'var(--el-color-warning)'
@@ -52,12 +58,23 @@ const progressColor = computed(() => {
 // 显示状态文本
 const statusText = computed(() => {
   if (!props.progress) return '准备中...'
-  
+
   if (props.progress.completed) {
     return '加载完成'
   }
-  
+
+  if (isIndeterminate.value) {
+    return `正在加载... 已加载 ${props.progress.loaded} 项`
+  }
+
   return `正在加载联系人... ${props.progress.loaded} 项`
+})
+
+// 显示百分比文本
+const percentageText = computed(() => {
+  if (!props.progress) return '--'
+  if (isIndeterminate.value) return '--'
+  return `${Math.min(props.progress.percentage, 100).toFixed(1)}%`
 })
 
 // 是否显示组件
@@ -81,13 +98,13 @@ const shouldShow = computed(() => {
         <div class="loading-progress__status">
           <div class="loading-progress__text">
             <el-icon class="loading-icon">
-              <Loading />
+              <Loading text="" />
             </el-icon>
             <span>{{ statusText }}</span>
           </div>
-          
+
           <div v-if="progress" class="loading-progress__percentage">
-            {{ progressWidth }}
+            {{ percentageText }}
           </div>
         </div>
 
@@ -95,6 +112,7 @@ const shouldShow = computed(() => {
         <div class="loading-progress__bar">
           <div
             class="loading-progress__fill"
+            :class="{ 'loading-progress__fill--indeterminate': isIndeterminate }"
             :style="{
               width: progressWidth,
               backgroundColor: progressColor
@@ -112,7 +130,7 @@ const shouldShow = computed(() => {
             <span class="label">已用时间:</span>
             <span class="value">{{ formatTime(progress.elapsedTime) }}</span>
           </div>
-          <div v-if="progress.estimatedTimeRemaining" class="detail-item">
+          <div v-if="progress.estimatedTimeRemaining && !isIndeterminate" class="detail-item">
             <span class="label">预计剩余:</span>
             <span class="value">{{ formatTime(progress.estimatedTimeRemaining) }}</span>
           </div>
@@ -193,6 +211,18 @@ const shouldShow = computed(() => {
     height: 100%;
     transition: width 0.3s ease, background-color 0.3s ease;
     border-radius: 2px;
+
+    // 不确定模式动画
+    &--indeterminate {
+      animation: indeterminate 1.5s ease-in-out infinite;
+      background: linear-gradient(
+        90deg,
+        var(--el-color-primary-light-3),
+        var(--el-color-primary),
+        var(--el-color-primary-light-3)
+      );
+      background-size: 200% 100%;
+    }
   }
 
   &__details {
@@ -233,6 +263,15 @@ const shouldShow = computed(() => {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes indeterminate {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
   }
 }
 

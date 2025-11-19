@@ -10,6 +10,7 @@ import SearchBar from '@/components/common/SearchBar.vue'
 import Loading from '@/components/common/Loading.vue'
 import Empty from '@/components/common/Empty.vue'
 import Error from '@/components/common/Error.vue'
+import LoadingProgress from '@/components/common/LoadingProgress.vue'
 import type { Contact } from '@/types'
 import { ContactType } from '@/types/contact'
 
@@ -18,15 +19,12 @@ const router = useRouter()
 
 // 状态
 const loading = ref(false)
-const loadingMore = ref(false)
 const refreshing = ref(false)
 const error = ref<Error | null>(null)
 const searchText = ref('')
 const filterType = ref<'all' | 'friends' | 'groups' | 'starred'>('all')
 const sortBy = ref<'name' | 'pinyin'>('pinyin')
-const hasMore = ref(true)
-const currentLimit = ref(200)
-const currentOffset = ref(0)
+
 const showBackTop = ref(false)
 const scrollerRef = ref()
 const pullDistance = ref(0)
@@ -153,54 +151,11 @@ const stats = computed(() => {
   }
 })
 
-// 加载更多
-const loadMore = async () => {
-  if (loadingMore.value || !hasMore.value || loading.value) {
-    return
-  }
-
-  loadingMore.value = true
-
-  try {
-    // 使用 contactAPI 直接加载更多数据
-    const { contactAPI } = await import('@/api')
-    const moreContacts = await contactAPI.getContacts({
-      limit: currentLimit.value,
-      offset: currentOffset.value
-    })
-
-    if (moreContacts.length < currentLimit.value) {
-      hasMore.value = false
-    }
-
-    // 使用 Store 方法添加联系人
-    const addedCount = contactStore.addContacts(moreContacts)
-    
-    if (addedCount > 0) {
-      currentOffset.value += moreContacts.length
-      console.log(`📥 Loaded ${addedCount} more contacts (offset: ${currentOffset.value})`)
-    } else {
-      hasMore.value = false
-    }
-  } catch (err) {
-    console.error('加载更多联系人失败:', err)
-    ElMessage.error('加载更多失败')
-  } finally {
-    loadingMore.value = false
-  }
-}
-
 // 处理滚动到底部
 const handleScroll = (event: any) => {
-  const { scrollTop, clientHeight, scrollHeight } = event.target
-  const distanceToBottom = scrollHeight - scrollTop - clientHeight
+  const { scrollTop } = event.target
   
-  // 距离底部 100px 时触发加载
-  if (distanceToBottom < 100 && hasMore.value && !loadingMore.value) {
-    loadMore()
-  }
-  
-  // 显示/隐藏回到顶部按钮
+  // 显示回到顶部按钮
   showBackTop.value = scrollTop > 300
 }
 
@@ -264,10 +219,6 @@ const handleTouchEnd = async () => {
     pullDistance.value = 0
     
     try {
-      // 重置状态
-      currentOffset.value = 0
-      hasMore.value = true
-      
       // 重新加载
       await loadContacts()
       
@@ -283,29 +234,46 @@ const handleTouchEnd = async () => {
 }
 
 // 加载联系人
+// 手动触发后台刷新
+const startBackgroundRefresh = async () => {
+  if (contactStore.isBackgroundLoading) {
+    ElMessage.warning('正在后台刷新中，请稍候...')
+    return
+  }
+  
+  try {
+    await contactStore.loadContactsInBackground({
+      batchSize: 50,
+      batchDelay: 100,
+      useCache: true
+    })
+    ElMessage.success('后台刷新完成')
+  } catch (err) {
+    console.error('后台刷新失败:', err)
+    ElMessage.error('后台刷新失败')
+  }
+}
+
 const loadContacts = async () => {
   loading.value = true
   error.value = null
-  currentOffset.value = 0
-  hasMore.value = true
   
   try {
-    await contactStore.loadContacts()
-    await contactStore.loadChatrooms()
+    // 只从数据库加载联系人
+    const { db } = await import('@/utils/db')
+    const cached = await db.getAllContacts()
     
-    // 初始化分页状态
-    const contactCount = contactStore.contacts.length
-    currentOffset.value = contactCount
-    
-    // 如果第一次加载的数据少于 limit，说明没有更多了
-    if (contactCount < currentLimit.value) {
-      hasMore.value = false
+    if (cached.length > 0) {
+      contactStore.contacts = cached
+      contactStore.totalContacts = cached.length
+      console.log(`📦 从数据库加载 ${cached.length} 个联系人`)
+    } else {
+      console.warn('⚠️ 数据库中没有联系人数据，请点击"后台刷新"加载')
     }
-    
-    console.log(`📥 Initial loaded ${contactCount} contacts`)
   } catch (e: any) {
     error.value = e
-    console.error('加载联系人失败:', e)
+    console.error('从数据库加载联系人失败:', e)
+    ElMessage.error('加载联系人失败')
   } finally {
     loading.value = false
   }
@@ -356,7 +324,25 @@ onMounted(() => {
             <el-tag v-if="stats.total > 0" size="small" type="info">
               {{ stats.total }}
             </el-tag>
+            <!-- 后台刷新按钮 -->
+            <el-button 
+              type="primary" 
+              size="small" 
+              :loading="contactStore.isBackgroundLoading"
+              @click="startBackgroundRefresh"
+            >
+              <el-icon v-if="!contactStore.isBackgroundLoading"><RefreshRight /></el-icon>
+              {{ contactStore.isBackgroundLoading ? '刷新中...' : '后台刷新' }}
+            </el-button>
           </div>
+          
+          <!-- 后台加载进度条 -->
+          <LoadingProgress
+            :progress="contactStore.loadProgress"
+            :visible="contactStore.isBackgroundLoading"
+            position="top"
+            :show-details="true"
+          />
 
           <!-- 搜索框 -->
           <SearchBar
@@ -518,16 +504,6 @@ onMounted(() => {
             </template>
           </RecycleScroller>
 
-          <!-- 加载更多提示 -->
-          <div v-if="loadingMore" class="loading-more">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <span>加载更多...</span>
-          </div>
-          
-          <div v-else-if="!hasMore && flattenedContacts.length > 0" class="no-more">
-            已加载全部联系人
-          </div>
-
           <!-- 字母索引 -->
           <div v-if="letterIndexList.length > 0 && sortBy === 'pinyin'" class="letter-index">
             <div
@@ -605,6 +581,7 @@ onMounted(() => {
     .header-title {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
       margin-bottom: 12px;
 
@@ -612,6 +589,15 @@ onMounted(() => {
         margin: 0;
         font-size: 20px;
         font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .el-tag {
+        flex-shrink: 0;
+      }
+
+      .el-button {
+        margin-left: auto;
       }
     }
 

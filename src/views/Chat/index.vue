@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useSessionStore } from '@/stores/session'
+import { useContactStore } from '@/stores/contact'
 import SessionList from '@/components/chat/SessionList.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
@@ -9,6 +10,7 @@ import type { Session } from '@/types'
 
 const appStore = useAppStore()
 const sessionStore = useSessionStore()
+const contactStore = useContactStore()
 
 // 引用
 const sessionListRef = ref()
@@ -51,8 +53,30 @@ const toggleSidebar = () => {
   appStore.toggleSidebar()
 }
 
-onMounted(() => {
-  // 初始化
+onMounted(async () => {
+  // 检查数据库中是否有联系人数据
+  // 如果为空，自动启动后台加载
+  try {
+    const { db } = await import('@/utils/db')
+    const contactCount = await db.getContactCount()
+    
+    if (contactCount === 0 && !contactStore.isBackgroundLoading) {
+      console.log('📦 数据库为空，自动启动后台加载联系人...')
+      
+      // 启动后台加载
+      contactStore.loadContactsInBackground({
+        batchSize: 50,
+        batchDelay: 100,
+        useCache: true
+      }).catch(err => {
+        console.error('自动后台加载联系人失败:', err)
+      })
+    } else if (contactCount > 0) {
+      console.log(`📦 数据库已有 ${contactCount} 个联系人，无需自动加载`)
+    }
+  } catch (err) {
+    console.error('检查联系人数据失败:', err)
+  }
 })
 </script>
 

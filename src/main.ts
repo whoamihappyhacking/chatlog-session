@@ -38,20 +38,8 @@ db.init().catch(err => {
 // 挂载应用
 app.mount('#app')
 
-// 应用挂载后，启动后台加载联系人
-import { useContactStore } from './stores/contact'
-const contactStore = useContactStore()
-
-// 延迟启动后台加载，让首屏渲染优先完成
-setTimeout(() => {
-  contactStore.loadContactsInBackground({
-    batchSize: 50,
-    batchDelay: 100,
-    useCache: true,
-  }).catch(err => {
-    console.error('后台加载联系人失败:', err)
-  })
-}, 1000)
+// 注意：已移除自动后台刷新联系人功能
+// 用户可以在 Contact 视图中手动触发刷新
 
 // 开发环境日志
 if (import.meta.env.DEV) {
