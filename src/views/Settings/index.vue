@@ -111,29 +111,53 @@ const testApiConnection = async () => {
 
   testingApi.value = true
   try {
+    // 去除末尾的斜杠
+    const baseUrl = settings.value.apiBaseUrl.endsWith('/')
+      ? settings.value.apiBaseUrl.slice(0, -1)
+      : settings.value.apiBaseUrl
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-    const response = await fetch(`${settings.value.apiBaseUrl}/health`, {
+    const response = await fetch(`${baseUrl}/api/v1/session?format=json`, {
       method: 'GET',
-      signal: controller.signal
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json'
+      }
     })
 
     clearTimeout(timeoutId)
 
-    if (response.ok) {
-      ElMessage.success('API 连接成功')
-    } else {
-      ElMessage.error(`API 连接失败: ${response.statusText}`)
+    // 检查 HTTP 状态码必须是 200
+    if (response.status !== 200) {
+      ElMessage.error(`API 连接失败: HTTP ${response.status} ${response.statusText}`)
+      testingApi.value = false
+      return
     }
+
+    // 尝试解析 JSON
+    try {
+      const data = await response.json()
+      
+      // 检查是否是有效的响应数据
+      if (data && (Array.isArray(data) || typeof data === 'object')) {
+        ElMessage.success('API 连接成功，响应正常')
+      } else {
+        ElMessage.error('API 响应格式错误：数据格式不正确')
+      }
+    } catch (jsonError) {
+      ElMessage.error('API 响应格式错误：无法解析 JSON')
+    }
+    
+    testingApi.value = false
   } catch (error: any) {
+    testingApi.value = false
     if (error.name === 'AbortError') {
       ElMessage.error('API 连接超时')
     } else {
       ElMessage.error(`API 连接失败: ${error.message}`)
     }
-  } finally {
-    testingApi.value = false
   }
 }
 
@@ -154,34 +178,34 @@ const loadSettings = () => {
     const savedSettings = localStorage.getItem('chatlog-settings')
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings)
-      
+
       // 只加载存在的配置项，避免覆盖新增的默认值
       if (parsed.apiBaseUrl !== undefined) settings.value.apiBaseUrl = parsed.apiBaseUrl
       if (parsed.apiTimeout !== undefined) settings.value.apiTimeout = parsed.apiTimeout
       if (parsed.apiRetryCount !== undefined) settings.value.apiRetryCount = parsed.apiRetryCount
       if (parsed.apiRetryDelay !== undefined) settings.value.apiRetryDelay = parsed.apiRetryDelay
       if (parsed.enableApiDebug !== undefined) settings.value.enableApiDebug = parsed.enableApiDebug
-      
+
       if (parsed.theme !== undefined) settings.value.theme = parsed.theme
       if (parsed.language !== undefined) settings.value.language = parsed.language
       if (parsed.fontSize !== undefined) settings.value.fontSize = parsed.fontSize
-      
+
       if (parsed.enableNotifications !== undefined) settings.value.enableNotifications = parsed.enableNotifications
       if (parsed.enableSound !== undefined) settings.value.enableSound = parsed.enableSound
       if (parsed.notificationPreview !== undefined) settings.value.notificationPreview = parsed.notificationPreview
-      
+
       if (parsed.enterToSend !== undefined) settings.value.enterToSend = parsed.enterToSend
       if (parsed.showTimestamp !== undefined) settings.value.showTimestamp = parsed.showTimestamp
       if (parsed.showAvatar !== undefined) settings.value.showAvatar = parsed.showAvatar
       if (parsed.messageGrouping !== undefined) settings.value.messageGrouping = parsed.messageGrouping
-      
+
       if (parsed.saveHistory !== undefined) settings.value.saveHistory = parsed.saveHistory
       if (parsed.autoDownloadMedia !== undefined) settings.value.autoDownloadMedia = parsed.autoDownloadMedia
       if (parsed.compressImages !== undefined) settings.value.compressImages = parsed.compressImages
-      
+
       if (parsed.enableDebug !== undefined) settings.value.enableDebug = parsed.enableDebug
       if (parsed.cacheSize !== undefined) settings.value.cacheSize = parsed.cacheSize
-      
+
       console.log('[Settings] 已加载保存的配置')
     } else {
       console.log('[Settings] 未找到保存的配置，使用默认值')
@@ -220,6 +244,11 @@ const handleThemeChange = (theme: string) => {
 
 // 保存设置
 const saveSettings = () => {
+  // 自动去除 apiBaseUrl 末尾的斜杠
+  if (settings.value.apiBaseUrl.endsWith('/')) {
+    settings.value.apiBaseUrl = settings.value.apiBaseUrl.slice(0, -1)
+  }
+
   // 保存到 localStorage
   localStorage.setItem('chatlog-settings', JSON.stringify(settings.value))
   ElMessage.success('设置已保存')
@@ -662,19 +691,19 @@ const goBack = () => {
                   <el-descriptions-item label="构建日期">
                     {{ buildDate }}
                   </el-descriptions-item>
-                  <el-descriptions-item 
+                  <el-descriptions-item
                     v-if="versionInfo.buildTime && versionInfo.buildTime !== buildDate"
                     label="构建时间"
                   >
                     {{ versionInfo.buildTime }}
                   </el-descriptions-item>
-                  <el-descriptions-item 
+                  <el-descriptions-item
                     v-if="versionInfo.gitHash && versionInfo.gitHash !== 'unknown'"
                     label="Git Hash"
                   >
                     <el-tag size="small" type="info">{{ versionInfo.gitHash }}</el-tag>
                   </el-descriptions-item>
-                  <el-descriptions-item 
+                  <el-descriptions-item
                     v-if="versionInfo.gitBranch && versionInfo.gitBranch !== 'unknown'"
                     label="Git 分支"
                   >

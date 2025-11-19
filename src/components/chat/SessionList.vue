@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 import type { Session } from '@/types'
 import SessionItem from './SessionItem.vue'
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   select: [session: Session]
 }>()
 
+const router = useRouter()
 const sessionStore = useSessionStore()
 
 // 加载状态
@@ -103,6 +105,11 @@ const handleRefresh = () => {
   loadSessions()
 }
 
+// 跳转到设置页面
+const goToSettings = () => {
+  router.push('/settings')
+}
+
 // 切换排序
 const handleSortChange = (type: 'time' | 'name' | 'unread') => {
   sortType.value = type
@@ -168,7 +175,16 @@ defineExpose({
           </el-icon>
         </template>
         <p class="error-message">{{ error }}</p>
-        <el-button type="primary" @click="handleRefresh">重试</el-button>
+        <div class="error-actions">
+          <el-button type="primary" @click="handleRefresh">重试</el-button>
+          <el-button @click="goToSettings">
+            <el-icon><Setting /></el-icon>
+            检查 API 设置
+          </el-button>
+        </div>
+        <p class="error-tip">
+          请确认 API 地址配置正确，并且服务正常运行
+        </p>
       </el-empty>
     </div>
 
@@ -269,6 +285,20 @@ defineExpose({
       margin: 12px 0;
       font-size: 13px;
       color: var(--el-color-danger);
+    }
+
+    .error-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .error-tip {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+      line-height: 1.6;
     }
 
     .empty-tip {

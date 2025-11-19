@@ -79,7 +79,7 @@ function transformSession(apiData: SessionApiResponse): Session {
         return '【公众号】'
       }
       if (apiData.userName === 'brandservicesessionholder') {
-        return '【品牌服务】'
+        return '服务号'
       }
 
       // 根据会话类型处理名称
