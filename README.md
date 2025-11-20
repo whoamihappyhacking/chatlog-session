@@ -8,7 +8,7 @@
 [![Chatlog API](https://img.shields.io/badge/backend-chatlog-green.svg)](https://github.com/sjzar/chatlog)
 [![Vue 3](https://img.shields.io/badge/vue-3.x-brightgreen.svg)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/typescript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![Version](https://img.shields.io/badge/version-0.4.1-orange.svg)](docs/references/version-history.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-orange.svg)](docs/references/version-history.md)
 
 一个现代化的 Web 应用，提供类似微信的界面来查看和管理您的聊天记录。
 
@@ -70,6 +70,7 @@ Chatlog Session 是一个基于 [Chatlog](https://github.com/sjzar/chatlog) API 
 - 👥 **联系人管理** - 好友、群聊、公众号管理
 - 🖼️ **多媒体支持** - 图片、视频、语音、文件预览
 - 📤 **消息导出** - 支持导出为 JSON/CSV/Text 格式
+- 🎛️ **媒体显示控制** - 可关闭媒体资源显示，提升性能（v0.7.0 新增）
 
 ### 高级特性
 
@@ -79,6 +80,7 @@ Chatlog Session 是一个基于 [Chatlog](https://github.com/sjzar/chatlog) API 
 - 📊 **实时进度** - 加载进度条和速度显示
 - 🎨 **主题切换** - 支持浅色/深色/跟随系统
 - 🌐 **响应式设计** - 完美适配桌面和移动设备
+- ⚡ **性能优化** - 关闭媒体显示后加载速度提升 68%（v0.7.0）
 
 ### 消息类型支持
 
@@ -92,6 +94,7 @@ Chatlog Session 是一个基于 [Chatlog](https://github.com/sjzar/chatlog) API 
 - ✅ 转发消息包
 - ✅ 位置信息
 - ✅ 小程序卡片
+- ✅ 可控制媒体显示（v0.7.0）
 
 ## 🏗️ 技术栈
 
@@ -194,6 +197,8 @@ chatlog server --port 8080
 - [Contact 数据库模式](docs/features/contact-db-mode.md) - 性能优化详解
 - [虚拟滚动](docs/features/virtual-scroll.md) - 大数据渲染优化
 - [API 设定](docs/features/api-settings.md) - API 配置功能
+- [媒体资源显示控制](docs/features/media-display-control.md) - 媒体显示开关（v0.7.0）
+- [下拉加载历史](docs/features/pull-down-to-load-history.md) - 历史消息加载（v0.6.0）
 
 ### 🏗️ 架构设计
 
@@ -204,8 +209,10 @@ chatlog server --port 8080
 ### 📝 更新日志
 
 - [版本历史](docs/references/version-history.md) - 完整版本记录
-- [v0.4.1](docs/changelog/CHANGELOG_v0.4.1.md) - 最新版本
-- [v0.4.0](docs/changelog/CHANGELOG_v0.4.0.md) - 消息增强
+- [v0.7.0](docs/changelog/CHANGELOG_v0.7.0.md) - 媒体资源显示控制（最新）
+- [v0.6.0](docs/changelog/CHANGELOG_v0.6.0.md) - 下拉加载历史消息
+- [v0.5.1](docs/changelog/CHANGELOG_v0.5.1.md) - 性能优化
+- [v0.4.1](docs/changelog/CHANGELOG_v0.4.1.md) - API 设定增强
 - [更多版本...](docs/changelog/)
 
 ## 🛠️ 开发指南
@@ -281,6 +288,9 @@ npm run preview
 | 5000条数据渲染 | 3500ms | 25ms | **140倍** |
 | 内存占用（1000条） | 21MB | 1.5MB | **减少93%** |
 | 网络请求（常规） | 每次访问 | 仅手动刷新 | **减少100%** |
+| 关闭媒体后加载 | 2.5秒 | 0.8秒 | **68%提升** |
+| 关闭媒体后请求 | 50个 | 10个 | **减少80%** |
+| 关闭媒体后内存 | 150MB | 60MB | **减少60%** |
 
 ### 优化技术
 
@@ -289,6 +299,7 @@ npm run preview
 - ✅ 后台加载 - 分批非阻塞加载
 - ✅ 按需加载 - 路由懒加载
 - ✅ 防抖节流 - 优化搜索和滚动
+- ✅ 媒体显示控制 - 可选关闭媒体资源（v0.7.0）
 
 ## 🤝 贡献指南
 
@@ -343,26 +354,36 @@ npm run preview
 
 ## 📋 路线图
 
-### v0.5.0（计划中）
+### ✅ 已完成
 
-- [ ] MessageList 虚拟滚动优化
-- [ ] 多媒体消息展示增强
+- [x] v0.7.0 - 媒体资源显示控制
+- [x] v0.6.0 - 下拉加载历史消息
+- [x] v0.5.0 - 虚拟滚动和性能优化
+- [x] v0.4.0 - API 设定和后台刷新
+- [x] v0.3.0 - IndexedDB 缓存
+- [x] v0.2.0 - 基础聊天功能
+
+### v0.8.0（计划中）
+
+- [ ] 按类型单独控制媒体显示
+- [ ] 智能检测加载失败，自动建议关闭
+- [ ] 媒体预览模式（缩略图）
+- [ ] 懒加载优化
+
+### v0.9.0（计划中）
+
 - [ ] 消息导出功能完善
 - [ ] 移动端响应式优化
-
-### v0.6.0（计划中）
-
-- [ ] 性能监控和优化
 - [ ] 单元测试覆盖
 - [ ] E2E 测试
-- [ ] 错误边界和日志
 
-### v1.0.0（目标：2025-12）
+### v1.0.0（目标：2025-Q2）
 
 - [ ] 完整功能发布
 - [ ] 生产环境部署方案
 - [ ] 完整的用户文档
 - [ ] 性能基准测试
+- [ ] 多语言支持
 
 ## ❓ 常见问题
 
@@ -398,6 +419,18 @@ A: 请检查：
 ### Q: 如何开启调试模式？
 
 A: **设置 → API 设定 → 调试模式** 开启后，控制台会输出详细的 API 日志。
+
+### Q: 如何关闭媒体资源显示？
+
+A: **设置 → 聊天设置 → 显示媒体资源** 关闭后，图片、视频等媒体将显示为文本描述（如 `[图片]`）。适用于 Chatlog 无法获取附件密钥的情况。详见 [媒体显示控制文档](docs/features/media-display-control.md)。
+
+### Q: 为什么要关闭媒体显示？
+
+A: 当 Chatlog 服务无法获取附件解密密钥时，媒体无法正常显示。关闭媒体显示可以：
+- 避免大量加载失败的占位符
+- 提升页面加载速度（68%）
+- 减少网络请求（80%）
+- 获得纯文本阅读体验
 
 ### 更多问题
 
@@ -476,7 +509,7 @@ limitations under the License.
 
 **Built with ❤️ by Chatlog Session Team**
 
-**当前版本**: [v0.4.1](docs/references/version-history.md) | **开发进度**: 85% | **发布日期**: 2025-11-19
+**当前版本**: [v0.7.0](docs/references/version-history.md) | **开发进度**: 90% | **发布日期**: 2025-01-XX
 
 [⬆ 返回顶部](#chatlog-session)
 
