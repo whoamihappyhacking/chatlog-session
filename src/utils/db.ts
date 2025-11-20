@@ -4,9 +4,10 @@
  */
 
 import type { Contact } from '@/types/contact'
+import { ensureContactIndex } from './contact-grouping'
 
 const DB_NAME = 'ChatlogSessionDB'
-const DB_VERSION = 1
+const DB_VERSION = 2  // 升级版本以支持拼音索引字段
 const CONTACT_STORE = 'contacts'
 
 /**
@@ -47,6 +48,15 @@ class Database {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result
+        const oldVersion = event.oldVersion
+
+        // 如果是旧版本升级，直接删除旧的对象存储重建
+        if (oldVersion > 0 && oldVersion < DB_VERSION) {
+          console.log(`数据库升级 v${oldVersion} → v${DB_VERSION}，清空旧数据`)
+          if (db.objectStoreNames.contains(CONTACT_STORE)) {
+            db.deleteObjectStore(CONTACT_STORE)
+          }
+        }
 
         // 创建联系人对象存储
         if (!db.objectStoreNames.contains(CONTACT_STORE)) {
@@ -57,8 +67,8 @@ class Database {
           contactStore.createIndex('remark', 'remark', { unique: false })
           contactStore.createIndex('type', 'type', { unique: false })
           contactStore.createIndex('alias', 'alias', { unique: false })
-          
-          console.log('📦 创建联系人存储:', CONTACT_STORE)
+          contactStore.createIndex('pinyinInitial', 'pinyinInitial', { unique: false })
+          contactStore.createIndex('isStarred', 'isStarred', { unique: false })
         }
       }
     })
@@ -82,6 +92,9 @@ class Database {
   async saveContact(contact: Contact): Promise<void> {
     const db = await this.getDB()
     
+    // 确保联系人有索引信息
+    ensureContactIndex(contact)
+    
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([CONTACT_STORE], 'readwrite')
       const store = transaction.objectStore(CONTACT_STORE)
@@ -97,6 +110,11 @@ class Database {
    */
   async saveContacts(contacts: Contact[]): Promise<void> {
     const db = await this.getDB()
+    
+    // 批量计算索引信息
+    contacts.forEach(contact => {
+      ensureContactIndex(contact)
+    })
     
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([CONTACT_STORE], 'readwrite')
@@ -130,7 +148,7 @@ class Database {
       })
 
       transaction.oncomplete = () => {
-        console.log(`✅ 成功缓存 ${total} 个联系人到 IndexedDB`)
+        // 批量保存完成
       }
 
       transaction.onerror = () => {

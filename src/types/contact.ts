@@ -25,8 +25,12 @@ export interface Contact {
   labelIds?: string[]
   labels?: string[]
   isStarred?: boolean
+  starredAt?: number
   lastContactTime?: number
   memberList?: string[]
+  // 索引和排序相关字段（缓存）
+  pinyinInitial?: string
+  sortKey?: string
 }
 
 /**

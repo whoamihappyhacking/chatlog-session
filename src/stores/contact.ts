@@ -321,7 +321,7 @@ export const useContactStore = defineStore('contact', () => {
           contacts.value = [...contacts.value, ...newContacts]
           totalContacts.value = contacts.value.length
 
-          // 保存到缓存
+          // 保存到缓存（会自动计算索引）
           await db.saveContacts(newContacts).catch(err => {
             console.error('保存批次到缓存失败:', err)
           })
@@ -341,18 +341,12 @@ export const useContactStore = defineStore('contact', () => {
       onCompleted: (items) => {
         isBackgroundLoading.value = false
         loadProgress.value = null
-
-        if (appStore.isDebug) {
-          console.log('✅ 后台加载完成', {
-            total: items.length,
-            time: (Date.now() - (backgroundLoader?.getState().running ? 0 : 0)) + 'ms'
-          })
-        }
+        console.log(`后台加载完成，共 ${items.length} 个联系人`)
       },
       onError: (err) => {
         isBackgroundLoading.value = false
         error.value = err
-        console.error('❌ 后台加载失败:', err)
+        console.error('后台加载失败:', err)
       },
       onProgress: (progress) => {
         loadProgress.value = progress

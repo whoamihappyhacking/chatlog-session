@@ -15,6 +15,12 @@ import LoadingProgress from '@/components/common/LoadingProgress.vue'
 import ContactDetail from './ContactDetail.vue'
 import type { Contact } from '@/types'
 import { ContactType } from '@/types/contact'
+import { 
+  groupAndSortContacts, 
+  generateIndexList, 
+  flattenGroups,
+  searchContacts as searchContactsUtil
+} from '@/utils/contact-grouping'
 
 const appStore = useAppStore()
 const contactStore = useContactStore()
@@ -58,89 +64,47 @@ const filteredContacts = computed(() => {
       break
   }
 
-  // 搜索过滤
+  // 搜索过滤（使用新的搜索工具函数，支持拼音搜索）
   if (searchText.value) {
-    const keyword = searchText.value.toLowerCase()
-    contacts = contacts.filter(contact =>
-      contact.nickname.toLowerCase().includes(keyword) ||
-      contact.alias?.toLowerCase().includes(keyword) ||
-      contact.remark?.toLowerCase().includes(keyword) ||
-      contact.wxid?.toLowerCase().includes(keyword)
-    )
+    contacts = searchContactsUtil(contacts, searchText.value)
   }
 
   return contacts
 })
 
+// 联系人分组
+const contactGroups = computed(() => {
+  if (sortBy.value === 'name') {
+    // 按名称排序，不分组
+    return []
+  }
+  
+  // 使用新的分组函数，支持星标和中文拼音
+  // skipIndexCalculation = true 因为索引已在 loadContacts 中异步计算
+  return groupAndSortContacts(filteredContacts.value, true)
+})
+
 // 扁平化列表用于虚拟滚动
 const flattenedContacts = computed(() => {
-  const result: Array<{ type: 'header' | 'item', key: string, data?: Contact, header?: string }> = []
-
   if (sortBy.value === 'name') {
     // 不分组，直接返回联系人列表
-    filteredContacts.value.forEach(contact => {
-      result.push({
-        type: 'item',
-        key: contact.wxid,
-        data: contact
-      })
-    })
-  } else {
-    // 按首字母分组
-    const grouped: Record<string, Contact[]> = {}
-    filteredContacts.value.forEach(contact => {
-      const initial = contact.nickname.charAt(0).toUpperCase()
-      if (!grouped[initial]) {
-        grouped[initial] = []
-      }
-      grouped[initial].push(contact)
-    })
-
-    // 按字母排序
-    const sortedLetters = Object.keys(grouped).sort((a, b) => {
-      if (a === '#') return 1
-      if (b === '#') return -1
-      return a.localeCompare(b)
-    })
-
-    // 构建扁平化列表
-    sortedLetters.forEach(letter => {
-      // 添加分组头
-      result.push({
-        type: 'header',
-        key: `header-${letter}`,
-        header: letter
-      })
-      // 添加该组的联系人
-      grouped[letter].forEach(contact => {
-        result.push({
-          type: 'item',
-          key: contact.wxid,
-          data: contact
-        })
-      })
-    })
+    return filteredContacts.value.map(contact => ({
+      type: 'item' as const,
+      key: contact.wxid,
+      data: contact
+    }))
   }
-
-  return result
+  
+  // 使用新的扁平化函数
+  return flattenGroups(contactGroups.value)
 })
 
 // 获取字母索引列表
 const letterIndexList = computed(() => {
   if (sortBy.value !== 'pinyin') return []
-
-  const letters = new Set<string>()
-  flattenedContacts.value.forEach(item => {
-    if (item.type === 'header' && item.header) {
-      letters.add(item.header)
-    }
-  })
-
-  return Array.from(letters).sort((a, b) => {
-    if (a === '#') return 1
-    if (b === '#') return -1
-    return a.localeCompare(b)
-  })
+  
+  // 使用新的索引生成函数
+  return generateIndexList(contactGroups.value)
 })
 
 // 统计信息
@@ -177,16 +141,24 @@ const scrollToTop = () => {
 
 // 跳转到指定字母
 const jumpToLetter = (letter: string) => {
-  const element = document.querySelector(`[data-letter="${letter}"]`)
-  if (element && scrollerRef.value && scrollerRef.value.$el) {
-    const scrollElement = scrollerRef.value.$el.querySelector('.vue-recycle-scroller__item-wrapper')
-    const scrollerRect = scrollElement?.getBoundingClientRect()
-    const elementRect = element.getBoundingClientRect()
-
-    if (scrollElement && scrollerRect) {
-      const offset = elementRect.top - scrollerRect.top + scrollElement.scrollTop
-      scrollElement.scrollTo({ top: offset, behavior: 'smooth' })
+  if (!scrollerRef.value) return
+  
+  // 在扁平化列表中查找对应字母的分组头索引
+  const targetIndex = flattenedContacts.value.findIndex(item => {
+    if (item.type === 'header') {
+      // 处理星标分组
+      if (letter === '⭐' && item.header === '星标朋友') {
+        return true
+      }
+      // 处理其他分组
+      return item.header === letter
     }
+    return false
+  })
+  
+  if (targetIndex >= 0) {
+    // 使用虚拟滚动的 scrollToItem 方法
+    scrollerRef.value.scrollToItem(targetIndex)
   }
 }
 
@@ -251,9 +223,9 @@ const startBackgroundRefresh = async () => {
     await contactStore.loadContactsInBackground({
       batchSize: 500,
       batchDelay: 100,
-      useCache: true
+      useCache: false  // 数据库已清空，不使用缓存
     })
-    ElMessage.success('后台刷新完成')
+    ElMessage.success(`后台刷新完成，已加载 ${contactStore.contacts.length} 个联系人`)
   } catch (err) {
     console.error('后台刷新失败:', err)
     ElMessage.error('后台刷新失败')
@@ -270,17 +242,27 @@ const loadContacts = async () => {
     const cached = await db.getAllContacts()
 
     if (cached.length > 0) {
+      console.log(`📦 从数据库加载 ${cached.length} 个联系人（索引已缓存）`)
+      
+      // 直接设置数据，索引信息已在数据库中
       contactStore.contacts = cached
       contactStore.totalContacts = cached.length
-      console.log(`📦 从数据库加载 ${cached.length} 个联系人`)
+      loading.value = false
     } else {
-      console.warn('⚠️ 数据库中没有联系人数据，请点击"后台刷新"加载')
+      console.log('数据库为空，自动触发后台加载')
+      // 自动触发后台加载
+      ElMessage.info('数据库已更新，正在重新加载联系人...')
+      try {
+        await startBackgroundRefresh()
+      } catch (err) {
+        console.error('自动加载失败:', err)
+      }
+      loading.value = false
     }
   } catch (e: any) {
     error.value = e
     console.error('从数据库加载联系人失败:', e)
     ElMessage.error('加载联系人失败')
-  } finally {
     loading.value = false
   }
 }
@@ -404,7 +386,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- 加载状态 -->
+        <!-- 加载中 -->
         <Loading v-if="loading" text="加载联系人中..." />
 
         <!-- 错误状态 -->
@@ -464,11 +446,17 @@ onMounted(() => {
               <!-- 分组头 -->
               <div
                 v-if="item.type === 'header'"
-                :key="`header-${item.header}`"
-                :data-letter="item.header"
                 class="group-header"
+                :class="{ 'starred-header': item.header === '星标朋友' }"
+                :data-letter="item.header === '星标朋友' ? '⭐' : item.header"
               >
-                {{ item.header }}
+                <div class="header-text">
+                  <span v-if="item.header === '星标朋友'" class="star-icon">⭐</span>
+                  <span>{{ item.header }}</span>
+                </div>
+                <span v-if="item.header === '星标朋友'" class="count">
+                  ({{ contactGroups.find(g => g.key === '⭐')?.count || 0 }})
+                </span>
               </div>
 
               <!-- 联系人项 -->
@@ -521,13 +509,18 @@ onMounted(() => {
 
           <!-- 字母索引 -->
           <div v-if="letterIndexList.length > 0 && sortBy === 'pinyin'" class="letter-index">
-            <div
-              v-for="letter in letterIndexList"
-              :key="letter"
+            <div 
+              v-for="index in letterIndexList" 
+              :key="index.key"
               class="letter-item"
-              @click="jumpToLetter(letter)"
+              :class="{ 
+                disabled: !index.enabled,
+                starred: index.type === 'starred',
+                special: index.type === 'special'
+              }"
+              @click="index.enabled && jumpToLetter(index.key)"
             >
-              {{ letter }}
+              {{ index.label }}
             </div>
           </div>
 
@@ -687,9 +680,35 @@ onMounted(() => {
       height: 36px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       position: sticky;
       top: 0;
       z-index: 10;
+
+      .header-text {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .star-icon {
+          font-size: 14px;
+        }
+      }
+
+      .count {
+        color: var(--el-text-color-placeholder);
+        font-size: 11px;
+      }
+
+      &.starred-header {
+        background-color: #fffbf0;
+        color: #ff9500;
+        font-size: 13px;
+
+        .star-icon {
+          color: #ff9500;
+        }
+      }
     }
 
     .contact-item {
@@ -842,18 +861,36 @@ onMounted(() => {
         font-weight: 600;
         color: var(--el-color-primary);
         cursor: pointer;
-        user-select: none;
         transition: all 0.2s;
         border-radius: 50%;
 
-        &:hover {
+        &:hover:not(.disabled) {
           background-color: var(--el-color-primary);
           color: white;
           transform: scale(1.2);
         }
 
-        &:active {
+        &:active:not(.disabled) {
           transform: scale(1.1);
+        }
+    
+        &.disabled {
+          color: var(--el-text-color-disabled);
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+    
+        &.starred {
+          font-size: 14px;
+          color: #ff9500;
+      
+          &:hover:not(.disabled) {
+            background-color: #ff9500;
+          }
+        }
+    
+        &.special {
+          color: var(--el-text-color-secondary);
         }
       }
     }
