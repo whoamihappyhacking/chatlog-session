@@ -54,13 +54,16 @@ const handleSearch = (value: string) => {
 
 
 
-// 刷新数据
+// 手动刷新数据（刷新会话列表和消息列表）
 const handleRefresh = () => {
   sessionListRef.value?.refresh()
   messageListRef.value?.refresh()
-  if (autoRefreshEnabled.value) {
-    ElMessage.success('已刷新')
-  }
+}
+
+// 自动刷新数据（只刷新会话列表）
+const autoRefresh = () => {
+  console.log('🔄 执行自动刷新会话列表...')
+  sessionListRef.value?.refresh()
 }
 
 // 启动自动刷新
@@ -74,8 +77,7 @@ const startAutoRefresh = () => {
     autoRefreshTimer.value = window.setInterval(() => {
       if (!isAutoRefreshing.value) {
         isAutoRefreshing.value = true
-        console.log('🔄 执行自动刷新...')
-        handleRefresh()
+        autoRefresh()
         setTimeout(() => {
           isAutoRefreshing.value = false
         }, 1000)
