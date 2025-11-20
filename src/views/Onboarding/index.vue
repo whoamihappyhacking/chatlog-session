@@ -130,11 +130,12 @@ onMounted(() => {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 20px;
   position: relative;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 
   &::before {
     content: '';
@@ -152,10 +153,15 @@ onMounted(() => {
     z-index: 1;
     width: 100%;
     max-width: 900px;
+    min-height: 300px;
+    max-height: calc(100vh - 40px);
     background: white;
     border-radius: 24px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin: auto;
   }
 
   &__skip {
@@ -170,7 +176,11 @@ onMounted(() => {
   }
 
   &__content {
-    min-height: 500px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   &__skip-dialog {
@@ -216,6 +226,8 @@ onMounted(() => {
 
     &__container {
       border-radius: 16px;
+      min-height: 500px;
+      max-height: calc(100vh - 20px);
     }
 
     &__skip {
@@ -228,7 +240,7 @@ onMounted(() => {
     }
 
     &__content {
-      min-height: 400px;
+      min-height: 0;
     }
   }
 }
