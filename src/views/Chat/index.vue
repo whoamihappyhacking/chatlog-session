@@ -29,9 +29,14 @@ const currentSession = computed(() => {
   return sessionStore.sessions.find((s: Session) => s.id === id) || null
 })
 
+// 当前会话的初始时间（用于消息加载）
+const currentSessionTime = ref<string | undefined>(undefined)
+
 // 处理会话选择
 const handleSessionSelect = (session: Session) => {
-  console.log('选中会话:', session)
+  console.log('📱 选中会话:', session.id, session.lastTime)
+  // 直接使用 session.lastTime 作为时间参数
+  currentSessionTime.value = session.lastTime
   // MessageList 会自动监听 sessionId 变化并加载消息
 }
 
@@ -173,6 +178,7 @@ onMounted(async () => {
             ref="messageListRef"
             :session-id="currentSession.id"
             :show-date="true"
+            :initial-time="currentSessionTime"
           />
         </template>
       </div>

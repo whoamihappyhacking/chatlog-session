@@ -174,7 +174,7 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * 加载消息列表
    */
-  async function loadMessages(talker: string, page = 1, append = false) {
+  async function loadMessages(talker: string, page = 1, append = false, beforeTime?: string) {
     try {
       loading.value = true
       error.value = null
@@ -183,7 +183,8 @@ export const useChatStore = defineStore('chat', () => {
       const offset = (page - 1) * pageSize.value
       const limit = pageSize.value
 
-      const result = await chatlogAPI.getSessionMessages(talker, undefined, limit, offset)
+      // 直接使用传入的时间字符串参数
+      const result = await chatlogAPI.getSessionMessages(talker, beforeTime, limit, offset)
 
       if (append) {
         messages.value = [...messages.value, ...result]

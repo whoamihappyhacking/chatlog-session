@@ -7,11 +7,13 @@ import MessageBubble from './MessageBubble.vue'
 interface Props {
   sessionId?: string
   showDate?: boolean
+  initialTime?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   sessionId: '',
-  showDate: true
+  showDate: true,
+  initialTime: undefined
 })
 
 const chatStore = useChatStore()
@@ -55,7 +57,7 @@ const loadMessages = async (loadMore = false) => {
     const page = loadMore ? chatStore.currentPage + 1 : 1
     const beforeCount = messages.value.length
 
-    await chatStore.loadMessages(props.sessionId, page, loadMore)
+    await chatStore.loadMessages(props.sessionId, page, loadMore, props.initialTime)
 
     hasMore.value = chatStore.hasMore
 
