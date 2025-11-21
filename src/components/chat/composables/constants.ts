@@ -18,7 +18,8 @@ export const RICH_MESSAGE_SUBTYPE = {
   SHOPPINGMINIPROGRAM: 36,
   SHORTVIDEO: 51,
   REFER: 57,
-  PAT: 62
+  PAT: 62,
+  LIVE: 63
 } as const
 
 // 消息类型映射
@@ -32,7 +33,8 @@ export const MESSAGE_TYPE_MAP: Record<string, string> = {
   '36': '购物小程序',
   '43': '视频',
   '51': '小视频',
-  '62': '拍一拍'
+  '62': '拍一拍',
+  '63': '直播'
 }
 
 // 消息图标映射
@@ -46,7 +48,8 @@ export const MESSAGE_ICON_MAP: Record<string, string> = {
   '36': 'ShoppingCart',
   '43': 'VideoPlay',
   '51': 'VideoCameraFilled',
-  '62': 'Pointer'
+  '62': 'Pointer',
+  '63': 'VideoCamera'
 }
 
 // 文件大小单位

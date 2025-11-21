@@ -105,6 +105,9 @@ export function useMessageUrl(message: Message) {
   const shortVideoTitle = computed(() => message.contents?.title || '小视频')
   const shortVideoUrl = computed(() => message.contents?.url || '')
 
+  // 直播相关
+  const liveTitle = computed(() => message.contents?.title || '直播')
+
   return {
     imageUrl,
     videoUrl,
@@ -123,6 +126,7 @@ export function useMessageUrl(message: Message) {
     shoppingMiniProgramDesc,
     shoppingMiniProgramThumb,
     shortVideoTitle,
-    shortVideoUrl
+    shortVideoUrl,
+    liveTitle
   }
 }

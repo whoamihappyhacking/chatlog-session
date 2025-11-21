@@ -27,6 +27,10 @@ const hasMoreHistory = ref(true)
 const error = ref<string | null>(null)
 const historyLoadMessage = ref('')
 
+// 自动加载计数器（防止短时间内过多请求）
+const autoLoadCount = ref(0)
+const maxAutoLoad = 5
+
 // 历史消息加载的上下文（用于同一时间范围内的分页）
 const historyLoadContext = ref<{
   timeRange: string
@@ -116,11 +120,13 @@ const handleLoadMore = async () => {
     // 判断是继续在同一时间范围内加载，还是加载更早的时间范围
     let beforeTime: string | number
     let offset: number = 0
+    let timeRange: string | undefined = undefined
 
     if (historyLoadContext.value && historyLoadContext.value.timeRange) {
       // 继续在同一时间范围内加载下一页
       beforeTime = historyLoadContext.value.beforeTime
       offset = historyLoadContext.value.offset
+      timeRange = historyLoadContext.value.timeRange
       console.log('📄 Continue loading in same time range:', {
         timeRange: historyLoadContext.value.timeRange,
         offset
@@ -136,11 +142,14 @@ const handleLoadMore = async () => {
       }
 
       offset = 0
+      timeRange = undefined
+      // 重置自动加载计数器（开始新的时间范围）
+      autoLoadCount.value = 0
       console.log('🔍 Load new time range, beforeTime:', beforeTime)
     }
 
     // 调用 store 的历史消息加载方法
-    const result = await chatStore.loadHistoryMessages(props.sessionId, beforeTime, offset)
+    const result = await chatStore.loadHistoryMessages(props.sessionId, beforeTime, offset, timeRange)
 
     // 更新历史加载提示消息
     historyLoadMessage.value = chatStore.historyLoadMessage
@@ -190,21 +199,33 @@ const handleLoadMore = async () => {
     }
 
     // 如果返回了满载（等于 pageSize），自动继续加载同一时间范围的下一页
+    // 但限制最大自动加载次数，避免短时间内过多请求
     if (result.messages.length > 0 && result.hasMore && result.messages.length >= chatStore.pageSize) {
-      console.log('🔄 Auto continuing in same time range...', {
-        loaded: result.messages.length,
-        pageSize: chatStore.pageSize,
-        nextOffset: result.offset,
-        timeRange: result.timeRange
-      })
-      
-      // 等待一小段时间后继续加载
-      await nextTick()
-      setTimeout(() => {
-        if (!loadingHistory.value && hasMoreHistory.value && historyLoadContext.value) {
-          handleLoadMore()
-        }
-      }, 100)
+      if (autoLoadCount.value < maxAutoLoad) {
+        autoLoadCount.value++
+        console.log('🔄 Auto continuing in same time range...', {
+          loaded: result.messages.length,
+          pageSize: chatStore.pageSize,
+          nextOffset: result.offset,
+          timeRange: result.timeRange,
+          autoLoadCount: autoLoadCount.value,
+          maxAutoLoad
+        })
+        
+        // 等待一小段时间后继续加载
+        await nextTick()
+        setTimeout(() => {
+          if (!loadingHistory.value && hasMoreHistory.value && historyLoadContext.value) {
+            handleLoadMore()
+          }
+        }, 100)
+      } else {
+        console.log('⚠️ Auto load limit reached, please scroll to load more manually', {
+          autoLoadCount: autoLoadCount.value,
+          maxAutoLoad
+        })
+        // 达到限制后，保持上下文，用户可以手动触发继续加载
+      }
     }
   } catch (err) {
     console.error('加载历史消息失败:', err)

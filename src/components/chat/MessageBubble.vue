@@ -18,6 +18,7 @@ import MiniProgramMessage from './message-types/MiniProgramMessage.vue'
 import ShoppingMiniProgramMessage from './message-types/ShoppingMiniProgramMessage.vue'
 import ShortVideoMessage from './message-types/ShortVideoMessage.vue'
 import PatMessage from './message-types/PatMessage.vue'
+import LiveMessage from './message-types/LiveMessage.vue'
 import ForwardedMessage from './message-types/ForwardedMessage.vue'
 import ForwardedDialog from './message-types/ForwardedDialog.vue'
 
@@ -56,6 +57,7 @@ const {
   isShoppingMiniProgramMessage,
   isShortVideoMessage,
   isPatMessage,
+  isLiveMessage,
   isOtherRichMessage,
   referMessage,
   referMessageType,
@@ -81,7 +83,8 @@ const {
   shoppingMiniProgramDesc,
   shoppingMiniProgramThumb,
   shortVideoTitle,
-  shortVideoUrl
+  shortVideoUrl,
+  liveTitle
 } = useMessageUrl(props.message)
 
 // 格式化消息时间
@@ -323,6 +326,12 @@ const getMediaPlaceholder = (type: number) => {
             :video-url="shortVideoUrl"
             :show-media-resources="showMediaResources"
             @click="handleShortVideoClick"
+          />
+
+          <!-- 直播消息 (type=49, subType=63) -->
+          <LiveMessage
+            v-else-if="isLiveMessage"
+            :title="liveTitle"
           />
 
           <!-- 转发消息包 (type=49, subType=19) -->

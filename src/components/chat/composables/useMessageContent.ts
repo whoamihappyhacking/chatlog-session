@@ -36,6 +36,9 @@ export function useMessageContent(message: Message) {
   const isPatMessage = computed(
     () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.PAT
   )
+  const isLiveMessage = computed(
+    () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.LIVE
+  )
   const isOtherRichMessage = computed(
     () =>
       message.type === MESSAGE_TYPE.RICH &&
@@ -46,7 +49,8 @@ export function useMessageContent(message: Message) {
       !isMiniProgramMessage.value &&
       !isShoppingMiniProgramMessage.value &&
       !isShortVideoMessage.value &&
-      !isPatMessage.value
+      !isPatMessage.value &&
+      !isLiveMessage.value
   )
 
   // 引用消息内容
@@ -82,6 +86,7 @@ export function useMessageContent(message: Message) {
     isShoppingMiniProgramMessage,
     isShortVideoMessage,
     isPatMessage,
+    isLiveMessage,
     isOtherRichMessage,
     referMessage,
     referMessageType,
