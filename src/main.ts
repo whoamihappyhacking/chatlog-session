@@ -11,6 +11,13 @@ import router from './router'
 import './assets/styles/index.scss'
 import { db } from './utils/db'
 
+// 开发环境：导入缓存调试工具
+if (import.meta.env.DEV) {
+  import('./utils/debugCache').then(module => {
+    module.installDebugTools()
+  })
+}
+
 const app = createApp(App)
 
 // 注册 Pinia

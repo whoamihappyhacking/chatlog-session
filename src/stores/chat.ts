@@ -7,10 +7,33 @@ import { chatlogAPI, mediaAPI } from '@/api'
 import type { Message } from '@/types/message'
 import type { SearchParams } from '@/types/api'
 import { useAppStore } from './app'
+import { useMessageCacheStore } from './messageCache'
+import { useAutoRefreshStore } from './autoRefresh'
 import { toCST, formatCSTRange, subtractDays, formatCSTDate } from '@/utils/timezone'
+
+/**
+ * 获取消息列表中最新消息的东八区时间
+ */
+function getLatestMessageTime(messages: Message[]): string | undefined {
+  if (!messages || messages.length === 0) return undefined
+
+  const latest = messages[messages.length - 1]
+
+  return latest.time
+}
 
 export const useChatStore = defineStore('chat', () => {
   const appStore = useAppStore()
+  const cacheStore = useMessageCacheStore()
+  const refreshStore = useAutoRefreshStore()
+
+  // 初始化缓存和自动刷新
+  if (!cacheStore.metadata.length) {
+    cacheStore.init()
+  }
+  if (refreshStore.config.enabled && !refreshStore.timer) {
+    refreshStore.init()
+  }
 
   // ==================== State ====================
 
@@ -184,6 +207,7 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 加载消息列表
+   * 优先从缓存加载，如果没有缓存则从 API 加载并缓存
    */
   async function loadMessages(talker: string, page = 1, append = false, beforeTime?: string) {
     try {
@@ -191,11 +215,49 @@ export const useChatStore = defineStore('chat', () => {
       error.value = null
       appStore.setLoading('messages', true)
 
-      const offset = (page - 1) * pageSize.value
+      let result: Message[] = []
       const limit = pageSize.value
 
-      // 直接使用传入的时间字符串参数
-      const result = await chatlogAPI.getSessionMessages(talker, beforeTime, limit, offset)
+      // 第一页且没有时间过滤时，尝试从缓存加载
+      if (page === 1 && !append) {
+        const cached = cacheStore.get(talker)
+        if (cached) {
+          result = cached
+          if (appStore.isDebug) {
+            console.log('📦 Loaded from cache', { talker, count: result.length })
+          }
+
+          // 后台触发刷新（如果启用）
+          if (refreshStore.config.enabled) {
+            // 获取缓存中最新消息的时间（东八区 ISO 格式）
+            const startFromTime = getLatestMessageTime(cached)
+            if(!beforeTime || !startFromTime || beforeTime > startFromTime){
+
+              if (appStore.isDebug) {
+                console.log('⏳ Triggering background refresh for talker:', talker)
+                console.log('📅 Start from time:', startFromTime)
+              }
+
+              refreshStore.refreshOne(talker, 1, startFromTime).catch(err => {
+                console.error('Background refresh failed:', err)
+              })
+            }
+          }
+        }
+      }
+
+      // 如果没有缓存，从 API 加载
+      if (result.length === 0) {
+        const offset = (page - 1) * limit
+
+        // 直接使用传入的时间字符串参数
+        result = await chatlogAPI.getSessionMessages(talker, beforeTime, limit, offset)
+
+        // 第一页时保存到缓存
+        if (page === 1 && !append) {
+          cacheStore.set(talker, result)
+        }
+      }
 
       if (append) {
         messages.value = [...messages.value, ...result]
@@ -836,6 +898,10 @@ export const useChatStore = defineStore('chat', () => {
     error,
     loadingHistory,
     historyLoadMessage,
+
+    // Cache & Refresh stores
+    cacheStore,
+    refreshStore,
 
     // Getters
     currentMessages,

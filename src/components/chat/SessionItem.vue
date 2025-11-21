@@ -14,6 +14,11 @@ const props = withDefaults(defineProps<Props>(), {
   active: false
 })
 
+// 定义 click 事件的 emit，当 SessionItem 被点击时：
+// 1. 模板中的 @click="handleClick" 触发 handleClick 方法
+// 2. handleClick 方法调用 emit('click', props.session)
+// 3. 将 click 事件和 session 数据传递给父组件
+// 4. 父组件通过 @click 监听器接收事件并执行相应的处理方法
 const emit = defineEmits<{
   click: [session: Session]
 }>()
