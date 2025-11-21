@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PictureFilled } from '@element-plus/icons-vue'
 import { getMediaPlaceholder } from '../composables/utils'
 
 interface Props {
@@ -22,7 +23,7 @@ const handleClick = () => {
     <template v-if="showMediaResources">
       <img v-if="emojiUrl" :src="emojiUrl" alt="emoji" class="emoji-image" />
       <div v-else class="emoji-placeholder">
-        <el-icon><HappyFilled /></el-icon>
+        <el-icon><PictureFilled /></el-icon>
         <span v-if="cdnurl">表情 (CDN: {{ cdnurl.substring(0, 30) }}...)</span>
         <span v-else>表情</span>
       </div>
