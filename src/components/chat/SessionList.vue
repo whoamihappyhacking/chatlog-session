@@ -26,6 +26,9 @@ const sessionStore = useSessionStore()
 const loading = ref(false)
 const error = ref<string | null>(null)
 
+// 后台刷新状态（无感知刷新）
+const silentRefreshing = ref(false)
+
 // 排序方式
 const sortType = ref<'time' | 'name' | 'unread'>('time')
 
@@ -79,7 +82,7 @@ const normalSessions = computed(() =>
 // 当前选中的会话
 const activeSessionId = computed(() => sessionStore.currentSessionId)
 
-// 加载会话列表
+// 加载会话列表（首次加载，显示 loading）
 const loadSessions = async () => {
   loading.value = true
   error.value = null
@@ -94,15 +97,53 @@ const loadSessions = async () => {
   }
 }
 
+// 无感知刷新会话列表（后台刷新，不影响 UI）
+const silentRefresh = async () => {
+  // 如果正在首次加载或已经在刷新，则跳过
+  if (loading.value || silentRefreshing.value) {
+    return
+  }
+
+  silentRefreshing.value = true
+
+  try {
+    // 保存当前选中的会话 ID
+    const currentId = activeSessionId.value
+    
+    // 后台加载新数据
+    await sessionStore.loadSessions()
+    
+    // 恢复选中状态（如果之前有选中）
+    if (currentId && sessionStore.currentSessionId !== currentId) {
+      sessionStore.currentSessionId = currentId
+    }
+    
+    // 清除错误状态（刷新成功）
+    error.value = null
+  } catch (err) {
+    // 静默处理错误，不影响用户操作
+    console.warn('后台刷新会话列表失败:', err)
+    // 不更新 error 状态，保持界面正常显示
+  } finally {
+    silentRefreshing.value = false
+  }
+}
+
 // 选择会话
 const handleSelectSession = (session: Session) => {
   sessionStore.currentSessionId = session.id
   emit('select', session)
 }
 
-// 刷新列表
+// 刷新列表（根据当前状态选择刷新方式）
 const handleRefresh = () => {
-  loadSessions()
+  // 如果当前有数据，使用无感知刷新
+  if (sessionList.value.length > 0) {
+    silentRefresh()
+  } else {
+    // 如果没有数据，使用常规加载
+    loadSessions()
+  }
 }
 
 // 跳转到设置页面
@@ -128,6 +169,7 @@ onMounted(() => {
 // 暴露方法给父组件
 defineExpose({
   refresh: handleRefresh,
+  silentRefresh,
   loadSessions
 })
 </script>
@@ -156,9 +198,20 @@ defineExpose({
         </template>
       </el-dropdown>
 
-      <el-button text size="small" @click="handleRefresh">
+      <el-button text size="small" :loading="silentRefreshing" @click="handleRefresh">
         <el-icon><Refresh /></el-icon>
       </el-button>
+      
+      <!-- 后台刷新指示器（非侵入式） -->
+      <el-tooltip 
+        v-if="silentRefreshing && sessionList.length > 0" 
+        content="正在刷新..." 
+        placement="left"
+      >
+        <el-icon class="refreshing-indicator" :size="12">
+          <Loading />
+        </el-icon>
+      </el-tooltip>
     </div>
 
     <!-- 加载状态 -->
@@ -373,6 +426,22 @@ defineExpose({
       background: rgba(0, 0, 0, 0.2);
     }
   }
+}
+
+// 后台刷新指示器样式
+.refreshing-indicator {
+  color: var(--el-color-primary);
+  animation: rotating 1s linear infinite;
+  margin-left: 8px;
+}
+
+@keyframes rotating {
+from {
+  transform: rotate(0deg);
+}
+to {
+  transform: rotate(360deg);
+}
 }
 
 .dark-mode {
