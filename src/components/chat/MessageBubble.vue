@@ -21,6 +21,7 @@ import PatMessage from './message-types/PatMessage.vue'
 import LiveMessage from './message-types/LiveMessage.vue'
 import ForwardedMessage from './message-types/ForwardedMessage.vue'
 import ForwardedDialog from './message-types/ForwardedDialog.vue'
+import RedPacketMessage from './message-types/RedPacketMessage.vue'
 
 interface Props {
   message: Message
@@ -58,6 +59,7 @@ const {
   isShortVideoMessage,
   isPatMessage,
   isLiveMessage,
+  isRedPacketMessage,
   isOtherRichMessage,
   referMessage,
   referMessageType,
@@ -332,6 +334,13 @@ const getMediaPlaceholder = (type: number) => {
           <LiveMessage
             v-else-if="isLiveMessage"
             :title="liveTitle"
+          />
+
+          <!-- 红包消息 (type=49, subType=2001) -->
+          <RedPacketMessage
+            v-else-if="isRedPacketMessage"
+            :content="message.content"
+            :show-media-resources="showMediaResources"
           />
 
           <!-- 转发消息包 (type=49, subType=19) -->

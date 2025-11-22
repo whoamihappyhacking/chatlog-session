@@ -19,7 +19,8 @@ export const RICH_MESSAGE_SUBTYPE = {
   SHORTVIDEO: 51,
   REFER: 57,
   PAT: 62,
-  LIVE: 63
+  LIVE: 63,
+  REDPACKET: 2001
 } as const
 
 // 消息类型映射
@@ -34,7 +35,8 @@ export const MESSAGE_TYPE_MAP: Record<string, string> = {
   '43': '视频',
   '51': '小视频',
   '62': '拍一拍',
-  '63': '直播'
+  '63': '直播',
+  '2001': '红包'
 }
 
 // 消息图标映射
@@ -49,7 +51,8 @@ export const MESSAGE_ICON_MAP: Record<string, string> = {
   '43': 'VideoPlay',
   '51': 'VideoCameraFilled',
   '62': 'Pointer',
-  '63': 'VideoCamera'
+  '63': 'VideoCamera',
+  '2001': 'Present'
 }
 
 // 文件大小单位
