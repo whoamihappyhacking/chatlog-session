@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/session'
 import { useContactStore } from '@/stores/contact'
 import { useChatStore } from '@/stores/chat'
 import { useChatroomStore } from '@/stores/chatroom'
+import { useAutoRefreshStore } from '@/stores/autoRefresh'
 import SessionList from '@/components/chat/SessionList.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
@@ -18,6 +19,7 @@ import { ElMessage } from 'element-plus'
 const appStore = useAppStore()
 const sessionStore = useSessionStore()
 const contactStore = useContactStore()
+const autoRefreshStore = useAutoRefreshStore()
 const chatStore = useChatStore()
 const chatroomStore = useChatroomStore()
 // 引用
@@ -202,10 +204,37 @@ const handleRefreshMessages = () => {
   messageListComponent.value?.refresh()
 }
 
-// 自动刷新数据（只刷新会话列表）
-const autoRefresh = () => {
+// 自动刷新数据（刷新会话列表 + 消息缓存）
+const autoRefresh = async () => {
   console.log('🔄 执行自动刷新会话列表...')
+  
+  // 1. 刷新会话列表
   sessionListRef.value?.refresh()
+  
+  // 2. 等待会话列表更新完成
+  await new Promise(resolve => setTimeout(resolve, 500))
+  
+  // 3. 检测需要刷新消息的会话
+  if (autoRefreshStore.config.enabled) {
+    console.log('🔄 检测需要刷新消息的会话...')
+    try {
+      await autoRefreshStore.detectNeedsRefresh()
+      
+      // 注意：detectNeedsRefresh 内部已经清空并重新填充 needsRefreshTalkers
+      // 所以这里的长度就是本次检测的结果
+      const needsRefreshCount = autoRefreshStore.needsRefreshTalkers.length
+      
+      // 显示提示
+      if (appStore.isDebug && needsRefreshCount > 0) {
+        ElMessage.info({
+          message: `正在后台刷新 ${needsRefreshCount} 个会话的消息...`,
+          duration: 2000
+        })
+      }
+    } catch (error) {
+      console.error('❌ 检测需要刷新的会话失败:', error)
+    }
+  }
 }
 
 // 启动自动刷新
@@ -216,10 +245,10 @@ const startAutoRefresh = () => {
 
   if (autoRefreshEnabled.value && autoRefreshInterval.value > 0) {
     console.log(`🔄 启动自动刷新，间隔: ${autoRefreshInterval.value}秒`)
-    autoRefreshTimer.value = window.setInterval(() => {
+    autoRefreshTimer.value = window.setInterval(async () => {
       if (!isAutoRefreshing.value) {
         isAutoRefreshing.value = true
-        autoRefresh()
+        await autoRefresh()
         setTimeout(() => {
           isAutoRefreshing.value = false
         }, 1000)
@@ -415,6 +444,11 @@ const handleTouchEnd = () => {
 }
 
 onMounted(async () => {
+  // 初始化 AutoRefresh Store
+  if (!autoRefreshStore.timer) {
+    autoRefreshStore.init()
+  }
+
   // 加载自动刷新设置
   loadAutoRefreshSettings()
 
@@ -457,6 +491,9 @@ onMounted(async () => {
 onUnmounted(() => {
   // 组件卸载时停止自动刷新
   stopAutoRefresh()
+
+  // 清理 chatStore 事件监听器
+  chatStore.cleanup()
 
   // 移除事件监听
   window.removeEventListener('chatlog-settings-updated', handleSettingsUpdate)

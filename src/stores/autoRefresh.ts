@@ -14,6 +14,8 @@ import { defineStore } from 'pinia'
 import { chatlogAPI } from '@/api/chatlog'
 import { useMessageCacheStore } from './messageCache'
 import { useAppStore } from './app'
+import { useNotificationStore } from './notification'
+import { useContactStore } from './contact'
 import type { Message } from '@/types/message'
 
 /**
@@ -448,6 +450,9 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
           console.log(`✅ Fetched ${messages.length} messages for ${task.talker}`)
         }
 
+        // 检测新消息并发送通知
+        this.checkAndNotify(messages, cached, task.talker)
+
         // 保存到缓存
         const success = cacheStore.set(task.talker, messages)
 
@@ -457,6 +462,11 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
           if (appStore.isDebug) {
             console.log(`💾 Cache saved successfully for ${task.talker}`)
           }
+
+          // 触发缓存更新事件，通知其他组件（如 chat store）
+          window.dispatchEvent(new CustomEvent('chatlog-cache-updated', {
+            detail: { talker: task.talker, messages }
+          }))
         } else {
           throw new Error('Failed to save cache')
         }
@@ -655,6 +665,122 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
     },
 
     /**
+     * 检测需要刷新的会话
+     * 通过比较会话列表的最后消息时间和缓存中的最后消息时间
+     */
+    async detectNeedsRefresh(): Promise<void> {
+      const appStore = useAppStore()
+      const cacheStore = useMessageCacheStore()
+      
+      // 清空之前的标记
+      this.needsRefreshTalkers = []
+      
+      // 导入 sessionStore（动态导入避免循环依赖）
+      const { useSessionStore } = await import('./session')
+      const sessionStore = useSessionStore()
+      
+      if (appStore.isDebug) {
+        console.log('🔍 Detecting sessions that need refresh...')
+        console.log(`📊 Total sessions: ${sessionStore.sessions.length}`)
+        console.log(`📦 Cached sessions: ${cacheStore.metadata.length}`)
+      }
+
+      // 获取所有会话
+      const sessions = sessionStore.sessions
+      const needsRefresh: string[] = []
+      let checkedCount = 0
+
+      for (const session of sessions) {
+        const talker = session.id
+        
+        // 检查缓存
+        const cached = cacheStore.get(talker)
+        
+        if (!cached || cached.length === 0) {
+          // 没有缓存，跳过（用户打开时会自动加载）
+          if (appStore.isDebug && checkedCount < 3) {
+            console.log(`⏭️ Skipping ${talker}: no cache`)
+          }
+          continue
+        }
+
+        checkedCount++
+
+        // 获取缓存中最后一条消息的时间
+        const cachedLastTime = cached[cached.length - 1]?.time
+        
+        // 获取会话列表中最后一条消息的时间
+        const sessionLastTime = session.lastTime
+        
+        if (!cachedLastTime || !sessionLastTime) {
+          if (appStore.isDebug && checkedCount <= 3) {
+            console.log(`⏭️ Skipping ${talker}: missing time`, {
+              cachedLastTime,
+              sessionLastTime
+            })
+          }
+          continue
+        }
+
+        // 比较时间，如果会话的最后消息时间比缓存新，说明有新消息
+        // 注意：允许 1 秒的误差，避免时间精度问题
+        const cachedTime = new Date(cachedLastTime).getTime()
+        const sessionTime = new Date(sessionLastTime).getTime()
+        const timeDiff = sessionTime - cachedTime
+        
+        if (appStore.isDebug && checkedCount <= 3) {
+          console.log(`🔍 Checking ${talker}:`, {
+            sessionLastTime,
+            cachedLastTime,
+            sessionTime,
+            cachedTime,
+            diff: timeDiff,
+            needsRefresh: timeDiff > 1000
+          })
+        }
+        
+        if (timeDiff > 1000) { // 大于 1 秒才认为有新消息
+          needsRefresh.push(talker)
+          
+          if (appStore.isDebug) {
+            console.log(`📌 Session needs refresh: ${talker}`, {
+              sessionLastTime,
+              cachedLastTime,
+              diff: timeDiff,
+              diffSeconds: (timeDiff / 1000).toFixed(1)
+            })
+          }
+        }
+      }
+
+      if (appStore.isDebug) {
+        console.log(`✅ Detection completed:`, {
+          totalSessions: sessions.length,
+          checkedSessions: checkedCount,
+          needsRefresh: needsRefresh.length,
+          talkers: needsRefresh
+        })
+      }
+
+      // 标记需要刷新的会话
+      if (needsRefresh.length > 0) {
+        this.markNeedsRefresh(needsRefresh)
+        
+        // 自动批量刷新（如果启用）
+        if (this.config.enabled) {
+          if (appStore.isDebug) {
+            console.log(`🔄 Starting batch refresh for ${needsRefresh.length} sessions...`)
+          }
+          await this.refreshBatch(needsRefresh)
+        }
+      } else {
+        if (appStore.isDebug) {
+          console.log('✅ All cached sessions are up to date')
+        }
+      }
+    },
+
+    /**
      * 标记需要刷新的会话
      */
     markNeedsRefresh(talkers: string[]) {
@@ -719,6 +845,52 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
         activeCount: this.activeCount,
         pendingCount: this.pendingTasks.length,
         needsRefreshCount: this.needsRefreshTalkers.length,
+      }
+    },
+
+    /**
+     * 检测新消息并发送通知
+     */
+    async checkAndNotify(newMessages: Message[], cachedMessages: Message[] | null, talker: string) {
+      const notificationStore = useNotificationStore()
+      const contactStore = useContactStore()
+      
+      // 如果通知未启用，直接返回
+      if (!notificationStore.isEnabled) {
+        return
+      }
+
+      // 如果没有缓存，说明是首次加载，不发送通知
+      if (!cachedMessages || cachedMessages.length === 0) {
+        return
+      }
+
+      // 找出新消息（不在缓存中的消息）
+      const cachedIds = new Set(cachedMessages.map(m => `${m.id}_${m.seq}`))
+      const actualNewMessages = newMessages.filter(m => !cachedIds.has(`${m.id}_${m.seq}`))
+
+      // 如果没有新消息，返回
+      if (actualNewMessages.length === 0) {
+        return
+      }
+
+      const appStore = useAppStore()
+      if (appStore.isDebug) {
+        console.log(`🔔 Found ${actualNewMessages.length} new messages for ${talker}`)
+      }
+
+      // 获取联系人信息
+      const contact = contactStore.getContact(talker)
+      const talkerName = contact?.name || contact?.nickname || talker
+
+      // 获取当前用户的 wxid（用于检测 @我）
+      const myWxid = appStore.config.myWxid || undefined
+
+      // 检测并发送通知
+      try {
+        await notificationStore.checkMessages(actualNewMessages, talker, talkerName, myWxid)
+      } catch (error) {
+        console.error('Failed to check and send notifications:', error)
       }
     },
 

@@ -35,6 +35,51 @@ export const useChatStore = defineStore('chat', () => {
     refreshStore.init()
   }
 
+  // 监听缓存更新事件
+  const handleCacheUpdate = (event: CustomEvent) => {
+    const { talker, messages: newMessages } = event.detail
+    
+    // 如果是当前打开的会话，更新消息列表
+    if (talker === currentTalker.value) {
+      const oldCount = messages.value.length
+      const newCount = newMessages.length
+      
+      if (newCount > oldCount) {
+        // 找出新增的消息（基于 id 和 seq）
+        const existingIds = new Set(messages.value.map(m => `${m.id}_${m.seq}`))
+        const actualNewMessages = newMessages.filter(m => !existingIds.has(`${m.id}_${m.seq}`))
+        
+        if (actualNewMessages.length > 0) {
+          // 只添加新消息到末尾
+          messages.value = [...messages.value, ...actualNewMessages]
+          
+          if (appStore.isDebug) {
+            console.log(`🔄 Auto-updated messages for current session: ${talker}`, {
+              oldCount,
+              newCount,
+              newMessagesCount: actualNewMessages.length
+            })
+          }
+        } else if (newCount !== oldCount) {
+          // 如果数量不同但没有新消息，说明可能有消息被删除或修改，全量更新
+          messages.value = newMessages
+          
+          if (appStore.isDebug) {
+            console.log(`🔄 Full refresh messages for current session: ${talker}`, {
+              oldCount,
+              newCount
+            })
+          }
+        }
+      }
+    }
+  }
+
+  // 添加事件监听器
+  if (typeof window !== 'undefined') {
+    window.addEventListener('chatlog-cache-updated', handleCacheUpdate as EventListener)
+  }
+
   // ==================== State ====================
 
   /**
@@ -879,6 +924,13 @@ export const useChatStore = defineStore('chat', () => {
     historyLoadMessage.value = ''
   }
 
+  // 清理函数：移除事件监听器
+  function cleanup() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('chatlog-cache-updated', handleCacheUpdate as EventListener)
+    }
+  }
+
   // ==================== Return ====================
 
   return {
@@ -938,5 +990,6 @@ export const useChatStore = defineStore('chat', () => {
     formatMessageDate,
     clearError,
     $reset,
+    cleanup,
   }
 })

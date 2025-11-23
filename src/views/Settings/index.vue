@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useNotificationStore } from '@/stores/notification'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getVersion, getBuildDate, getVersionInfo } from '@/utils/version'
 import { Guide } from '@element-plus/icons-vue'
 
 const appStore = useAppStore()
+const notificationStore = useNotificationStore()
 const router = useRouter()
 
 // 设置选项
@@ -24,8 +26,14 @@ const settings = ref({
 
   // 通知设置
   enableNotifications: true,
+  enableMention: true,
+  enableQuote: true,
+  enableMessage: false,
   enableSound: true,
+  enableVibrate: false,
   notificationPreview: true,
+  onlyShowLatest: true,
+  autoCloseTime: 5,
 
   // 聊天设置
   enterToSend: true,
@@ -96,6 +104,12 @@ const apiTimeoutOptions = [
 ]
 
 // 重试次数选项
+// 通知权限状态
+const notificationPermission = computed(() => notificationStore.permission)
+
+// 通知统计
+const notificationStats = computed(() => notificationStore.getStats())
+
 const retryCountOptions = [
   { label: '不重试', value: 0 },
   { label: '1 次', value: 1 },
@@ -201,8 +215,14 @@ const loadSettings = () => {
       if (parsed.fontSize !== undefined) settings.value.fontSize = parsed.fontSize
 
       if (parsed.enableNotifications !== undefined) settings.value.enableNotifications = parsed.enableNotifications
+      if (parsed.enableMention !== undefined) settings.value.enableMention = parsed.enableMention
+      if (parsed.enableQuote !== undefined) settings.value.enableQuote = parsed.enableQuote
+      if (parsed.enableMessage !== undefined) settings.value.enableMessage = parsed.enableMessage
       if (parsed.enableSound !== undefined) settings.value.enableSound = parsed.enableSound
+      if (parsed.enableVibrate !== undefined) settings.value.enableVibrate = parsed.enableVibrate
       if (parsed.notificationPreview !== undefined) settings.value.notificationPreview = parsed.notificationPreview
+      if (parsed.onlyShowLatest !== undefined) settings.value.onlyShowLatest = parsed.onlyShowLatest
+      if (parsed.autoCloseTime !== undefined) settings.value.autoCloseTime = parsed.autoCloseTime
 
       if (parsed.enterToSend !== undefined) settings.value.enterToSend = parsed.enterToSend
       if (parsed.showTimestamp !== undefined) settings.value.showTimestamp = parsed.showTimestamp
@@ -229,14 +249,89 @@ const loadSettings = () => {
 }
 
 // 组件挂载时加载配置
-onMounted(() => {
+onMounted(async () => {
   loadSettings()
+  // 初始化通知 Store
+  await notificationStore.init()
+  // 同步通知设置
+  syncNotificationSettings()
 })
 
 // 切换主题
 const handleThemeChange = (theme: string) => {
   appStore.updateSettings({ theme: theme as 'light' | 'dark' | 'auto' })
   ElMessage.success('主题已切换')
+}
+
+// 同步通知设置到 Store
+const syncNotificationSettings = () => {
+  notificationStore.updateConfig({
+    enabled: settings.value.enableNotifications,
+    enableMention: settings.value.enableMention,
+    enableQuote: settings.value.enableQuote,
+    enableMessage: settings.value.enableMessage,
+    enableSound: settings.value.enableSound,
+    enableVibrate: settings.value.enableVibrate,
+    onlyShowLatest: settings.value.onlyShowLatest,
+    autoClose: settings.value.autoCloseTime,
+  })
+}
+
+// 请求通知权限
+const requestNotificationPermission = async () => {
+  const result = await notificationStore.requestPermission()
+  if (result === 'granted') {
+    ElMessage.success('通知权限已授予')
+    settings.value.enableNotifications = true
+    saveSettings()
+  } else if (result === 'denied') {
+    ElMessage.error('通知权限被拒绝')
+  }
+}
+
+// 测试通知
+const testNotification = async () => {
+  console.log('🔔 Starting test notification...')
+  console.log('Current permission:', notificationPermission.value)
+  console.log('Config enabled:', notificationStore.config.enabled)
+  
+  try {
+    const success = await notificationStore.testNotification()
+    
+    if (success) {
+      ElMessage.success({
+        message: '测试通知已发送，请查看浏览器右上角的通知',
+        duration: 3000
+      })
+      console.log('✅ Test notification sent successfully')
+    } else {
+      ElMessage.error({
+        message: '无法发送通知，请检查权限设置',
+        duration: 5000
+      })
+      console.error('❌ Test notification failed')
+    }
+  } catch (error) {
+    console.error('❌ Test notification error:', error)
+    ElMessage.error({
+      message: `发送通知失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      duration: 5000
+    })
+  }
+}
+
+// 清空通知历史
+const clearNotificationHistory = () => {
+  ElMessageBox.confirm('确定要清空所有通知历史吗？', '确认清空', {
+    confirmButtonText: '清空',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    notificationStore.clearHistory()
+    ElMessage.success('通知历史已清空')
+  }).catch(() => {
+    // 用户取消
+  })
 }
 
 // 保存设置
@@ -260,6 +355,9 @@ const saveSettings = () => {
   appStore.updateSettings({
     showMediaResources: settings.value.showMediaResources
   })
+
+  // 同步通知设置到 notificationStore
+  syncNotificationSettings()
 
   // 触发自定义事件，通知其他组件设置已更新
   window.dispatchEvent(new CustomEvent('chatlog-settings-updated', {
@@ -301,6 +399,12 @@ const resetSettings = async () => {
       showMediaResources: true,
       autoRefresh: false,
       autoRefreshInterval: 30,
+      enableMention: true,
+      enableQuote: true,
+      enableMessage: false,
+      enableVibrate: false,
+      onlyShowLatest: true,
+      autoCloseTime: 5,
       saveHistory: true,
       autoDownloadMedia: true,
       compressImages: true,
@@ -580,9 +684,93 @@ const restartOnboarding = async () => {
             </div>
 
             <el-form label-position="left" label-width="120px">
+              <!-- 通知权限状态 -->
+              <el-alert
+                v-if="notificationPermission === 'denied'"
+                type="error"
+                :closable="false"
+                style="margin-bottom: 16px"
+              >
+                <template #title>
+                  <span style="font-size: 13px">通知权限已被拒绝</span>
+                </template>
+                <div style="font-size: 12px; margin-top: 4px">
+                  请在浏览器设置中允许通知权限，然后刷新页面
+                </div>
+              </el-alert>
+
+              <el-alert
+                v-else-if="notificationPermission === 'default'"
+                type="warning"
+                :closable="false"
+                style="margin-bottom: 16px"
+              >
+                <template #title>
+                  <span style="font-size: 13px">需要通知权限</span>
+                </template>
+                <div style="font-size: 12px; margin-top: 4px">
+                  <el-button size="small" type="primary" @click="requestNotificationPermission">
+                    请求通知权限
+                  </el-button>
+                </div>
+              </el-alert>
+
+              <el-alert
+                v-else
+                type="success"
+                :closable="false"
+                style="margin-bottom: 16px"
+              >
+                <template #title>
+                  <span style="font-size: 13px">通知权限已授予</span>
+                </template>
+              </el-alert>
+
+              <el-divider />
+
+              <!-- 全局开关 -->
               <el-form-item label="启用通知">
                 <el-switch v-model="settings.enableNotifications" />
+                <span class="form-tip">关闭后将不会收到任何通知</span>
               </el-form-item>
+
+              <el-divider />
+
+              <!-- 通知类型 -->
+              <div style="margin-bottom: 16px">
+                <el-text tag="b">通知类型</el-text>
+              </div>
+
+              <el-form-item label="@我的消息">
+                <el-switch
+                  v-model="settings.enableMention"
+                  :disabled="!settings.enableNotifications"
+                />
+                <span class="form-tip">有人在群聊中 @你</span>
+              </el-form-item>
+
+              <el-form-item label="引用我的消息">
+                <el-switch
+                  v-model="settings.enableQuote"
+                  :disabled="!settings.enableNotifications"
+                />
+                <span class="form-tip">有人引用了你的消息</span>
+              </el-form-item>
+
+              <el-form-item label="普通消息">
+                <el-switch
+                  v-model="settings.enableMessage"
+                  :disabled="!settings.enableNotifications"
+                />
+                <span class="form-tip">所有新消息（可能会很多）</span>
+              </el-form-item>
+
+              <el-divider />
+
+              <!-- 通知行为 -->
+              <div style="margin-bottom: 16px">
+                <el-text tag="b">通知行为</el-text>
+              </div>
 
               <el-form-item label="通知声音">
                 <el-switch
@@ -591,11 +779,71 @@ const restartOnboarding = async () => {
                 />
               </el-form-item>
 
+              <el-form-item label="震动提示">
+                <el-switch
+                  v-model="settings.enableVibrate"
+                  :disabled="!settings.enableNotifications"
+                />
+                <span class="form-tip">仅移动设备支持</span>
+              </el-form-item>
+
               <el-form-item label="消息预览">
                 <el-switch
                   v-model="settings.notificationPreview"
                   :disabled="!settings.enableNotifications"
                 />
+                <span class="form-tip">在通知中显示消息内容</span>
+              </el-form-item>
+
+              <el-form-item label="只显示最新">
+                <el-switch
+                  v-model="settings.onlyShowLatest"
+                  :disabled="!settings.enableNotifications"
+                />
+                <span class="form-tip">新通知会替换旧通知</span>
+              </el-form-item>
+
+              <el-form-item label="自动关闭">
+                <el-input-number
+                  v-model="settings.autoCloseTime"
+                  :min="0"
+                  :max="60"
+                  :step="1"
+                  :disabled="!settings.enableNotifications"
+                  style="width: 150px"
+                />
+                <el-text type="info" size="small" style="margin-left: 12px">
+                  秒（0 表示不自动关闭）
+                </el-text>
+              </el-form-item>
+
+              <el-divider />
+
+              <!-- 通知测试 -->
+              <el-form-item label="测试通知">
+                <el-button
+                  :disabled="notificationPermission !== 'granted'"
+                  @click="testNotification"
+                >
+                  <el-icon><Bell /></el-icon>
+                  发送测试通知
+                </el-button>
+              </el-form-item>
+
+              <!-- 通知统计 -->
+              <el-form-item label="通知统计">
+                <el-space direction="vertical" size="small">
+                  <el-text size="small">未读通知: {{ notificationStats.unreadCount }}</el-text>
+                  <el-text size="small">历史通知: {{ notificationStats.totalNotifications }}</el-text>
+                  <el-text size="small">静音会话: {{ notificationStats.muteCount }}</el-text>
+                </el-space>
+              </el-form-item>
+
+              <el-form-item label="清空历史">
+                <el-button @click="clearNotificationHistory">
+                  <el-icon><Delete /></el-icon>
+                  清空通知历史
+                </el-button>
               </el-form-item>
             </el-form>
           </div>
