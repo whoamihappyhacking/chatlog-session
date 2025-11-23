@@ -880,11 +880,11 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
       }
 
       // 获取联系人信息
-      const contact = contactStore.getContact(talker)
-      const talkerName = contact?.name || contact?.nickname || talker
+      const contact = contactStore.contacts.find(c => c.wxid === talker)
+      const talkerName = contact?.remark || contact?.nickname || talker
 
       // 获取当前用户的 wxid（用于检测 @我）
-      const myWxid = appStore.config.myWxid || undefined
+      const myWxid = undefined
 
       // 检测并发送通知
       try {

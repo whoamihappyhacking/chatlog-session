@@ -47,7 +47,7 @@ export const useChatStore = defineStore('chat', () => {
       if (newCount > oldCount) {
         // 找出新增的消息（基于 id 和 seq）
         const existingIds = new Set(messages.value.map(m => `${m.id}_${m.seq}`))
-        const actualNewMessages = newMessages.filter(m => !existingIds.has(`${m.id}_${m.seq}`))
+        const actualNewMessages = newMessages.filter((m: Message) => !existingIds.has(`${m.id}_${m.seq}`))
         
         if (actualNewMessages.length > 0) {
           // 只添加新消息到末尾
