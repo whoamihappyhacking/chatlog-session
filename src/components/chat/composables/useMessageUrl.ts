@@ -108,6 +108,12 @@ export function useMessageUrl(message: Message) {
   // 直播相关
   const liveTitle = computed(() => message.contents?.title || '直播')
 
+  // 位置信息相关
+  const locationLabel = computed(() => message.contents?.label || '位置')
+  const locationX = computed(() => message.contents?.x || '')
+  const locationY = computed(() => message.contents?.y || '')
+  const locationCityname = computed(() => message.contents?.cityname || '')
+
   return {
     imageUrl,
     videoUrl,
@@ -127,6 +133,10 @@ export function useMessageUrl(message: Message) {
     shoppingMiniProgramThumb,
     shortVideoTitle,
     shortVideoUrl,
-    liveTitle
+    liveTitle,
+    locationLabel,
+    locationX,
+    locationY,
+    locationCityname
   }
 }

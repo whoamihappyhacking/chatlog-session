@@ -7,11 +7,19 @@ export function useMessageContent(message: Message) {
   const isTextMessage = computed(() => message.type === MESSAGE_TYPE.TEXT)
   const isImageMessage = computed(() => message.type === MESSAGE_TYPE.IMAGE)
   const isVoiceMessage = computed(() => message.type === MESSAGE_TYPE.VOICE)
+  const isContactCardMessage = computed(() => message.type === MESSAGE_TYPE.CONTACT_CARD)
   const isVideoMessage = computed(() => message.type === MESSAGE_TYPE.VIDEO)
   const isEmojiMessage = computed(() => message.type === MESSAGE_TYPE.EMOJI)
+  const isLocationMessage = computed(() => message.type === MESSAGE_TYPE.LOCATION)
   const isSystemMessage = computed(() => message.type === MESSAGE_TYPE.SYSTEM)
 
   // type=49 的各种子类型
+  const isQQMusicMessage = computed(
+    () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.QQMUSIC
+  )
+  const isCardPackageMessage = computed(
+    () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.CARDPACKAGE
+  )
   const isReferMessage = computed(
     () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.REFER
   )
@@ -39,12 +47,17 @@ export function useMessageContent(message: Message) {
   const isLiveMessage = computed(
     () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.LIVE
   )
+  const isTransferMessage = computed(
+    () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.TRANSFER
+  )
   const isRedPacketMessage = computed(
     () => message.type === MESSAGE_TYPE.RICH && message.subType === RICH_MESSAGE_SUBTYPE.REDPACKET
   )
   const isOtherRichMessage = computed(
     () =>
       message.type === MESSAGE_TYPE.RICH &&
+      !isQQMusicMessage.value &&
+      !isCardPackageMessage.value &&
       !isReferMessage.value &&
       !isLinkMessage.value &&
       !isForwardedMessage.value &&
@@ -54,6 +67,7 @@ export function useMessageContent(message: Message) {
       !isShortVideoMessage.value &&
       !isPatMessage.value &&
       !isLiveMessage.value &&
+      !isTransferMessage.value &&
       !isRedPacketMessage.value
   )
 
@@ -79,9 +93,13 @@ export function useMessageContent(message: Message) {
     isTextMessage,
     isImageMessage,
     isVoiceMessage,
+    isContactCardMessage,
     isVideoMessage,
     isEmojiMessage,
+    isLocationMessage,
     isSystemMessage,
+    isQQMusicMessage,
+    isCardPackageMessage,
     isReferMessage,
     isLinkMessage,
     isForwardedMessage,
@@ -91,6 +109,7 @@ export function useMessageContent(message: Message) {
     isShortVideoMessage,
     isPatMessage,
     isLiveMessage,
+    isTransferMessage,
     isRedPacketMessage,
     isOtherRichMessage,
     referMessage,

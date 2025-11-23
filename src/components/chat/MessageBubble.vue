@@ -22,6 +22,11 @@ import LiveMessage from './message-types/LiveMessage.vue'
 import ForwardedMessage from './message-types/ForwardedMessage.vue'
 import ForwardedDialog from './message-types/ForwardedDialog.vue'
 import RedPacketMessage from './message-types/RedPacketMessage.vue'
+import LocationMessage from './message-types/LocationMessage.vue'
+import ContactCardMessage from './message-types/ContactCardMessage.vue'
+import TransferMessage from './message-types/TransferMessage.vue'
+import QQMusicMessage from './message-types/QQMusicMessage.vue'
+import CardPackageMessage from './message-types/CardPackageMessage.vue'
 
 interface Props {
   message: Message
@@ -47,9 +52,13 @@ const {
   isTextMessage,
   isImageMessage,
   isVoiceMessage,
+  isContactCardMessage,
   isVideoMessage,
   isEmojiMessage,
+  isLocationMessage,
   isSystemMessage,
+  isQQMusicMessage,
+  isCardPackageMessage,
   isReferMessage,
   isLinkMessage,
   isForwardedMessage,
@@ -59,6 +68,7 @@ const {
   isShortVideoMessage,
   isPatMessage,
   isLiveMessage,
+  isTransferMessage,
   isRedPacketMessage,
   isOtherRichMessage,
   referMessage,
@@ -86,7 +96,11 @@ const {
   shoppingMiniProgramThumb,
   shortVideoTitle,
   shortVideoUrl,
-  liveTitle
+  liveTitle,
+  locationLabel,
+  locationX,
+  locationY,
+  locationCityname
 } = useMessageUrl(props.message)
 
 // 格式化消息时间
@@ -153,6 +167,35 @@ const handleShortVideoClick = () => {
     window.open(shortVideoUrl.value, '_blank')
   }
   console.log('播放小视频:', shortVideoTitle.value)
+}
+
+// 处理位置消息点击
+const handleLocationClick = () => {
+  if (locationX.value && locationY.value) {
+    const mapUrl = `https://apis.map.qq.com/uri/v1/marker?marker=coord:${locationX.value},${locationY.value};title:${encodeURIComponent(locationLabel.value)}&referer=chatlog-session`
+    window.open(mapUrl, '_blank')
+  }
+  console.log('查看位置:', locationLabel.value)
+}
+
+// 处理个人名片点击
+const handleContactCardClick = () => {
+  console.log('查看个人名片')
+}
+
+// 处理转账点击
+const handleTransferClick = () => {
+  console.log('查看转账:', props.message.content)
+}
+
+// 处理 QQ 音乐点击
+const handleQQMusicClick = () => {
+  console.log('查看 QQ 音乐')
+}
+
+// 处理微信卡包点击
+const handleCardPackageClick = () => {
+  console.log('查看微信卡包')
 }
 
 // 转发消息 Dialog
@@ -258,6 +301,38 @@ const getMediaPlaceholder = (type: number) => {
             :cdnurl="message.contents?.cdnurl"
           />
 
+          <!-- 个人名片消息 (type=42) -->
+          <ContactCardMessage
+            v-else-if="isContactCardMessage"
+            :show-media-resources="showMediaResources"
+            @click="handleContactCardClick"
+          />
+
+          <!-- 位置消息 (type=48) -->
+          <LocationMessage
+            v-else-if="isLocationMessage"
+            :label="locationLabel"
+            :x="locationX"
+            :y="locationY"
+            :cityname="locationCityname"
+            :show-media-resources="showMediaResources"
+            @click="handleLocationClick"
+          />
+
+          <!-- QQ音乐消息 (type=49, subType=3) -->
+          <QQMusicMessage
+            v-else-if="isQQMusicMessage"
+            :show-media-resources="showMediaResources"
+            @click="handleQQMusicClick"
+          />
+
+          <!-- 微信卡包消息 (type=49, subType=16) -->
+          <CardPackageMessage
+            v-else-if="isCardPackageMessage"
+            :show-media-resources="showMediaResources"
+            @click="handleCardPackageClick"
+          />
+
           <!-- 引用消息 (type=49, subType=57) -->
           <div v-else-if="isReferMessage" class="message-refer">
             <div v-if="referMessage" class="refer-content">
@@ -336,10 +411,17 @@ const getMediaPlaceholder = (type: number) => {
             :title="liveTitle"
           />
 
+          <!-- 转账消息 (type=49, subType=2000) -->
+          <TransferMessage
+            v-else-if="isTransferMessage"
+            :content="message.content"
+            :show-media-resources="showMediaResources"
+            @click="handleTransferClick"
+          />
+
           <!-- 红包消息 (type=49, subType=2001) -->
           <RedPacketMessage
             v-else-if="isRedPacketMessage"
-            :content="message.content"
             :show-media-resources="showMediaResources"
           />
 
@@ -368,7 +450,7 @@ const getMediaPlaceholder = (type: number) => {
             <el-icon><Postcard /></el-icon>
             <div class="rich-info">
               <div class="rich-title">{{ fileName }}</div>
-              <div class="rich-type">类型: {{ message.subType }}</div>
+              <div class="rich-type">子类型: {{ message.subType }}</div>
             </div>
           </div>
 
