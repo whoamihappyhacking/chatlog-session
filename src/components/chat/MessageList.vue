@@ -282,7 +282,7 @@ const scrollToBottom = (smooth = false) => {
 }
 
 // 滚动到指定消息
-const scrollToMessage = (messageId: string) => {
+const scrollToMessage = (messageId: string|number) => {
   const element = document.getElementById(`message-${messageId}`)
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })

@@ -17,6 +17,7 @@ import { useAppStore } from './app'
 import { useNotificationStore } from './notification'
 import { useContactStore } from './contact'
 import type { Message } from '@/types/message'
+import { toCST, formatCSTRange } from '@/utils/timezone'
 
 /**
  * 刷新任务状态
@@ -546,7 +547,6 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
           : latestCached.createTime * 1000
         
         // 转换为东八区 ISO 格式
-        const { toCST } = await import('@/utils/timezone')
         latestCachedTimeCST = toCST(new Date(latestCachedTimeMs))
         if (appStore.isDebug) {
           console.log(`📅 Latest cached message time (auto-detected): ${latestCachedTimeCST}`)
@@ -555,7 +555,6 @@ export const useAutoRefreshStore = defineStore('autoRefresh', {
 
       // 获取从起始时间到现在的新消息
       const now = Date.now()
-      const { toCST, formatCSTRange } = await import('@/utils/timezone')
       const nowCST = toCST(new Date(now))
       const timeDiff = now - latestCachedTimeMs
       const daysDiff = Math.ceil(timeDiff / (24 * 60 * 60 * 1000))
