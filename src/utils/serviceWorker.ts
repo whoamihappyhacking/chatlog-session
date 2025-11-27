@@ -53,7 +53,7 @@ export class ServiceWorkerManager {
     this.config = {
       enabled: true,
       scriptUrl: './sw.js',
-      scope: '/',
+      scope: import.meta.env.VITE_BASE_PATH || './',
       updateCheckInterval: 60 * 60 * 1000, // 1小时
       ...config,
     }

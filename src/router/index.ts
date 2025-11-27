@@ -68,7 +68,7 @@ const routes: RouteRecordRaw[] = [
  * 创建路由实例
  */
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(import.meta.env.VITE_BASE_PATH),
   routes,
 })
 

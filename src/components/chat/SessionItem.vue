@@ -38,7 +38,7 @@ const lastMessageTime = computed(() => {
 // 最后一条消息预览
 const lastMessagePreview = computed(() => {
   const msg = props.session.lastMessage
-  if (!msg) return '[不支持的消息类型]'
+  if (!msg) return '[未知的消息类型]'
 
   const content = msg.content || '[非文本消息]'
 

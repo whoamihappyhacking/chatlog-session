@@ -127,7 +127,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .onboarding {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: flex-start;
@@ -154,7 +154,7 @@ onMounted(() => {
     width: 100%;
     max-width: 900px;
     min-height: 300px;
-    max-height: calc(100vh - 40px);
+    max-height: calc(100dvh - 40px);
     background: white;
     border-radius: 24px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -227,7 +227,7 @@ onMounted(() => {
     &__container {
       border-radius: 16px;
       min-height: 500px;
-      max-height: calc(100vh - 20px);
+      max-height: calc(100dvh - 20px);
     }
 
     &__skip {
