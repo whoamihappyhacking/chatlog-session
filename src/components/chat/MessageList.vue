@@ -322,23 +322,23 @@ const handleRefresh = () => {
 }
 
 // 判断是否显示头像（连续消息优化）
-const shouldShowAvatar = (index: number, messages: Message[]) => {
+const shouldDiffFromPrev = (index: number, messages: Message[]) => {
   // 选项1：每条消息都显示头像
   // return true
 
   // 选项2：连续消息优化（当前使用）
-  if (index === messages.length - 1) return true
+  if (index === 0) return true
 
   const current = messages[index]
-  const next = messages[index + 1]
+  const prev = messages[index - 1]
 
   // 不同发送者显示头像
-  if (current.sender !== next.sender) return true
+  if (current.sender !== prev.sender) return true
 
   // 时间间隔超过5分钟显示头像
   const currentTime = current.createTime ? current.createTime * 1000 : new Date(current.time).getTime()
-  const nextTime = next.createTime ? next.createTime * 1000 : new Date(next.time).getTime()
-  const timeDiff = nextTime - currentTime
+  const prevTime = prev.createTime ? prev.createTime * 1000 : new Date(prev.time).getTime()
+  const timeDiff = currentTime - prevTime
   if (timeDiff > 5 * 60 * 1000) return true
 
   return false
@@ -358,22 +358,12 @@ const shouldShowTime = (index: number, messages: Message[]) => {
   const timeDiff = currentTime - prevTime
   return timeDiff > 5 * 60 * 1000
 }
-
+const shouldShowAvatar = (index: number, messages: Message[]) => {
+  return shouldDiffFromPrev(index, messages)
+}
 // 判断是否显示名称（群聊中）
 const shouldShowName = (index: number, messages: Message[]) => {
-  //if (index === 0) return true
-  if (index === messages.length - 1) return true
-
-  const current = messages[index]
-  // const prev = messages[index - 1]
-
-  // // 不同发送者显示名称
-  // return current.sender !== prev.sender
-  //
-  const next = messages[index + 1]
-
-  // 不同发送者显示头像
-  if (current.sender !== next.sender) return true
+  return shouldDiffFromPrev(index, messages)
 }
 
 // 监听会话ID变化
