@@ -80,28 +80,6 @@ npm run build
 
 详细说明请参考 [部署文档](docs/deployment/README.md)。
 
-## 📚 文档
-
-### 用户文档
-- [用户指南](docs/user-guide/README.md) - 功能使用说明
-- [常见问题](docs/user-guide/faq.md) - 疑难解答
-- [隐私政策](docs/user-guide/privacy.md) - 隐私保护说明
-
-### 开发文档
-- [开发指南](docs/development/README.md) - 开发环境搭建
-- [架构设计](docs/architecture/README.md) - 技术架构说明
-- [贡献指南](docs/development/contributing.md) - 如何参与开发
-
-### 部署文档
-- [GitHub Pages 部署](docs/deployment/github-pages.md)
-- [其他部署方式](docs/deployment/README.md)
-
-### 参考文档
-- [功能特性详解](docs/features/README.md)
-- [API 文档](docs/api/README.md)
-- [更新日志](docs/references/version-history.md)
-- [路线图](https://github.com/xlight/chatlog-session-docs/blob/main/ROADMAP.md)
-
 ## 🛠️ 技术栈
 
 | 类型 | 技术 | 版本 |
@@ -162,8 +140,8 @@ npm run build
 <details>
 <summary><b>Q: 图片无法显示</b></summary>
 
-1. 确认 Chatlog API 的图片服务正常
-2. 检查图片 URL 是否正确
+1. 确认 Chatlog API 的图片服务正常，
+2. 确认 Chatlog 的 图片
 3. 尝试在浏览器中直接访问图片 URL
 4. 如需提升性能，可在 **设置** 中关闭媒体资源显示
 </details>

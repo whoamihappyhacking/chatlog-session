@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useContactStore } from '@/stores/contact'
 import ChatView from './Chat/index.vue'
@@ -8,6 +8,8 @@ import SearchView from './Search/index.vue'
 import SettingsView from './Settings/index.vue'
 import MobileTabBar from '@/components/layout/MobileTabBar.vue'
 
+const DashboardView = defineAsyncComponent(() => import('./Dashboard/index.vue'))
+
 const appStore = useAppStore()
 const contactStore = useContactStore()
 
@@ -15,7 +17,7 @@ const contactStore = useContactStore()
 const isContactLoading = computed(() => contactStore.isBackgroundLoading)
 
 // 当前激活的视图
-type ViewType = 'chat' | 'contact' | 'search' | 'settings'
+type ViewType = 'chat' | 'contact' | 'search' | 'dashboard' | 'settings'
 const currentView = ref<ViewType>('chat')
 
 // 同步 activeNav 和 currentView
@@ -74,6 +76,8 @@ const CurrentViewComponent = computed(() => {
       return ContactView
     case 'search':
       return SearchView
+    case 'dashboard':
+      return DashboardView
     case 'settings':
       return SettingsView
     default:
@@ -133,6 +137,18 @@ const CurrentViewComponent = computed(() => {
           >
             <el-icon size="24">
               <Search />
+            </el-icon>
+          </div>
+        </el-tooltip>
+
+        <el-tooltip content="数据总览" placement="right">
+          <div
+            class="nav-item"
+            :class="{ active: isActive('dashboard') }"
+            @click="switchView('dashboard')"
+          >
+            <el-icon size="24">
+              <DataLine />
             </el-icon>
           </div>
         </el-tooltip>
