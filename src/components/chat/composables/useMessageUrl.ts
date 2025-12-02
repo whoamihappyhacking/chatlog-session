@@ -2,10 +2,10 @@ import { computed } from 'vue'
 import type { Message } from '@/types'
 import { mediaAPI } from '@/api/media'
 
-const PROXY_BASE = 'https://spmc.sporneur.com/proxy'
+const PROXY_BASE = 'https://spmc.sponeur.com/proxy'
 const ALLOWED_DOMAINS = [
   'vweixinf.tc.qq.com',
-  'wxapp.tc.qq.com'
+ // 'wxapp.tc.qq.com'
 ]
 
 function convertToProxyUrl(url: string): string {
