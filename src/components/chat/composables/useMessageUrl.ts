@@ -6,11 +6,12 @@ import { mediaAPI } from '@/api/media'
 const PROXY_BASE = 'https://spmc.sponeur.com/proxy'
 const ALLOWED_DOMAINS = [
   'vweixinf.tc.qq.com',
+  'mmbiz.qpic.cn'
  // 'wxapp.tc.qq.com'
 ]
 
 function convertToProxyUrl(url: string): string {
-  if (window.location.protocol !== 'https:') return url
+  //if (window.location.protocol !== 'https:') return url
   if (!url || !url.startsWith('http://')) return url
 
   try {
