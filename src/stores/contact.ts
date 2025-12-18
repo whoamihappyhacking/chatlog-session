@@ -3,7 +3,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { contactAPI } from '@/api'
+import { contactAPI, getAvatarUrl } from '@/api/contact'
 import type { Contact } from '@/types/contact'
 import type { ContactFilterType } from '@/types'
 import { useAppStore } from './app'
@@ -610,10 +610,35 @@ export const useContactStore = defineStore('contact', () => {
   /**
    * 获取联系人头像
    */
-  function getContactAvatar(wxid: string): string {
+  /**
+   * 获取联系人头像
+   * @param wxid 联系人微信 ID
+   * @param size 头像尺寸，'big' | 'small'，默认 'small'
+   * @returns 头像 URL
+   */
+  function getContactAvatar(wxid: string, size: 'big' | 'small' = 'small'): string {
     const contact = contacts.value.find(c => c.wxid === wxid)
-    if (!contact || !contact.avatar) return ''
-    return contact.avatar
+    if (!contact) return ''
+
+    // 优先使用后端返回的头像 URL
+    if (size === 'big' && contact.bigHeadImgUrl) {
+      return contact.bigHeadImgUrl
+    }
+    if (size === 'small' && contact.smallHeadImgUrl) {
+      return contact.smallHeadImgUrl
+    }
+
+    // 其次使用 contact.avatar（可能是 smallHeadImgUrl 或通过 headImgMd5 生成的）
+    if (contact.avatar) {
+      return contact.avatar
+    }
+
+    // 最后尝试通过 headImgMd5 生成
+    if (contact.wxid) {
+      return getAvatarUrl(contact.wxid)
+    }
+
+    return ''
   }
 
   /**

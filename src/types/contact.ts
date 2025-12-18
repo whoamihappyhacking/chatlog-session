@@ -28,6 +28,12 @@ export interface Contact {
   starredAt?: number
   lastContactTime?: number
   memberList?: string[]
+  // 后端新增字段
+  isPinned?: boolean
+  isMinimized?: boolean
+  bigHeadImgUrl?: string
+  smallHeadImgUrl?: string
+  headImgMd5?: string
   // 索引和排序相关字段（缓存）
   pinyinInitial?: string
   sortKey?: string

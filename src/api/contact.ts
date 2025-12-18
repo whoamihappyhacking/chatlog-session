@@ -17,6 +17,11 @@ interface BackendContact {
   remark: string
   nickName: string
   isFriend: boolean
+  isPinned?: boolean
+  isMinimized?: boolean
+  bigHeadImgUrl?: string
+  smallHeadImgUrl?: string
+  headImgMd5?: string
 }
 
 /**
@@ -24,6 +29,18 @@ interface BackendContact {
  */
 interface BackendContactResponse {
   items: BackendContact[]
+  total?: number
+}
+
+/**
+ * 根据 username 生成头像 URL
+ * @param username 头像 MD5 值
+ * @param size 头像尺寸，0=大图，132=小图
+ * @returns 头像 URL
+ */
+function getAvatarUrl(username?: string): string {
+  if (!username) return ''
+  return `/avatar/${username}`
 }
 
 /**
@@ -42,14 +59,23 @@ function transformContact(backendContact: BackendContact): Contact {
     type = ContactType.Friend
   }
 
+  // 优先使用后端返回的头像 URL，否则通过 userName 生成
+  const avatar = backendContact.bigHeadImgUrl || backendContact.smallHeadImgUrl ||
+                 getAvatarUrl(backendContact.userName)
+
   return {
     wxid: backendContact.userName,
     nickname: backendContact.nickName || backendContact.userName,
     remark: backendContact.remark || '',
     alias: backendContact.alias || '',
-    avatar: '', // 后端未返回，使用空字符串
+    avatar,
     type,
     isStarred: false, // 后端未返回，默认false
+    isPinned: backendContact.isPinned,
+    isMinimized: backendContact.isMinimized,
+    bigHeadImgUrl: backendContact.bigHeadImgUrl,
+    smallHeadImgUrl: backendContact.smallHeadImgUrl,
+    headImgMd5: backendContact.headImgMd5,
   }
 }
 
@@ -94,7 +120,7 @@ class ContactAPI {
 
   /**
    * 获取群聊列表（前端过滤）
-   * 
+   *
    * @returns 群聊列表
    */
   async getChatrooms(): Promise<Contact[]> {
@@ -104,7 +130,7 @@ class ContactAPI {
 
   /**
    * 获取好友列表（前端过滤）
-   * 
+   *
    * @returns 好友列表
    */
   async getFriends(): Promise<Contact[]> {
@@ -114,7 +140,7 @@ class ContactAPI {
 
   /**
    * 获取公众号列表（前端过滤）
-   * 
+   *
    * @returns 公众号列表
    */
   async getOfficialAccounts(): Promise<Contact[]> {
@@ -300,6 +326,11 @@ class ContactAPI {
  * 导出单例
  */
 export const contactAPI = new ContactAPI()
+
+/**
+ * 导出工具函数
+ */
+export { getAvatarUrl }
 
 /**
  * 默认导出
