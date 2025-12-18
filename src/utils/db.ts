@@ -121,8 +121,13 @@ class Database {
 
   /**
    * 批量保存联系人
+   * 优化版本：使用事务级别的完成回调，避免逐个检查
    */
   async saveContacts(contacts: Contact[]): Promise<void> {
+    if (contacts.length === 0) {
+      return Promise.resolve()
+    }
+
     const db = await this.getDB()
     
     // 批量计算索引信息
@@ -134,41 +139,35 @@ class Database {
       const transaction = db.transaction([CONTACT_STORE], 'readwrite')
       const store = transaction.objectStore(CONTACT_STORE)
 
-      let completed = 0
-      const total = contacts.length
-
-      if (total === 0) {
-        resolve()
-        return
-      }
-
-      contacts.forEach(contact => {
-        const request = store.put(contact)
-        
-        request.onsuccess = () => {
-          completed++
-          if (completed === total) {
-            resolve()
-          }
-        }
-        
-        request.onerror = () => {
-          console.error('保存联系人失败:', contact.wxid, request.error)
-          completed++
-          if (completed === total) {
-            resolve() // 即使有错误也继续
-          }
-        }
-      })
-
+      // 使用事务的 oncomplete 事件，而不是逐个检查每个请求
+      // 这样可以显著提升性能，因为浏览器会优化整个事务的提交
       transaction.oncomplete = () => {
-        // 批量保存完成
+        resolve()
       }
 
       transaction.onerror = () => {
         console.error('批量保存事务失败:', transaction.error)
         reject(transaction.error)
       }
+
+      transaction.onabort = () => {
+        console.error('批量保存事务被中止')
+        reject(new Error('Transaction aborted'))
+      }
+
+      // 批量提交所有写入请求
+      // 不再监听每个请求的 onsuccess，让事务自动处理
+      contacts.forEach(contact => {
+        const request = store.put(contact)
+        
+        // 只在出错时记录日志，不阻塞整个流程
+        request.onerror = (e) => {
+          console.warn('保存单个联系人失败:', contact.wxid, request.error)
+          // 阻止错误冒泡到事务，允许其他项继续保存
+          e.preventDefault()
+          e.stopPropagation()
+        }
+      })
     })
   }
 

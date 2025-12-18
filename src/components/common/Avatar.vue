@@ -33,12 +33,12 @@ const fontSize = computed(() => {
 // 从名字中提取首字母
 const nameInitial = computed(() => {
   if (!props.name) return '?'
-  
+
   // 如果是中文名，取第一个字
   if (/[\u4e00-\u9fa5]/.test(props.name)) {
     return props.name.charAt(0)
   }
-  
+
   // 如果是英文名，取首字母
   const words = props.name.trim().split(/\s+/)
   if (words.length >= 2) {
@@ -50,17 +50,17 @@ const nameInitial = computed(() => {
 // 根据名字生成背景色
 const backgroundColor = computed(() => {
   if (!props.name) return '#ccc'
-  
+
   const colors = [
     '#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1',
     '#13c2c2', '#eb2f96', '#fa541c', '#a0d911', '#2f54eb'
   ]
-  
+
   let hash = 0
   for (let i = 0; i < props.name.length; i++) {
     hash = props.name.charCodeAt(i) + ((hash << 5) - hash)
   }
-  
+
   return colors[Math.abs(hash) % colors.length]
 })
 
@@ -93,15 +93,15 @@ const handleError = () => {
       v-if="src && !imgError"
       :src="src"
       :alt="alt || name"
-      class="avatar__img" loading="lazy" crossorigin="anonymous"
+      class="avatar__img" loading="lazy"
       @error="handleError"
     />
-    
+
     <!-- 图标头像 -->
     <el-icon v-else-if="icon" :size="parseInt(avatarSize) * 0.6" class="avatar__icon">
       <component :is="icon" />
     </el-icon>
-    
+
     <!-- 文字头像 -->
     <span v-else class="avatar__text" :style="{ fontSize }">
       {{ nameInitial }}
@@ -118,31 +118,31 @@ const handleError = () => {
   overflow: hidden;
   user-select: none;
   position: relative;
-  
+
   &--circle {
     border-radius: 50%;
   }
-  
+
   &--square {
     border-radius: 4px;
   }
-  
+
   &__img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  
+
   &__text {
     color: #fff;
     font-weight: 500;
     line-height: 1;
   }
-  
+
   &__icon {
     color: #fff;
   }
-  
+
   &--error {
     border: 1px solid var(--el-border-color-lighter);
   }
